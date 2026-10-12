@@ -118,7 +118,7 @@ function staffReviewEmbed(ticket, user) {
   return new EmbedBuilder()
     .setColor(ORANGE)
     .setTitle(`🔎 Review Testimoni #${ticket.number}`)
-    .setDescription('Bukti pembayaran sudah diterima. Staff yang memiliki role yang ditentukan dapat memilih **ACCEPT** atau **REJECT** setelah memeriksa bukti.')
+    .setDescription('Bukti pembayaran sudah diterima. Staff akan menentukan accept atau reject setelah memeriksa bukti.')
     .addFields(
       { name: '👤 Pengirim', value: `<@${user.id}>\n${escapeMarkdown(user.tag || user.username)}`, inline: true },
       { name: '⭐ Rating', value: `${'⭐'.repeat(ticket.rating)} (${ticket.rating}/5)`, inline: true },
@@ -195,9 +195,6 @@ function closingEmbed(reason = 'Ticket ditutup.') {
 
 function publicTestimonialEmbed(ticket, user, copiedFileNames = [], fallbackLinks = []) {
   const proofParts = [];
-  if (copiedFileNames.length) {
-    proofParts.push(`✅ Disalin sebagai lampiran: ${copiedFileNames.map(escapeMarkdown).join(', ')}`);
-  }
   if (fallbackLinks.length) {
     proofParts.push(`🔗 ${fallbackLinks.length} bukti tambahan ditautkan pada pesan berikutnya.`);
   }
@@ -213,10 +210,10 @@ function publicTestimonialEmbed(ticket, user, copiedFileNames = [], fallbackLink
     .setDescription(`> ${truncate(ticket.reviewText, 2500).replace(/\n/g, '\n> ')}`)
     .addFields(
       { name: '⭐ Rating', value: `${'⭐'.repeat(ticket.rating)} **${ticket.rating}/5**`, inline: true },
-      { name: '🛍️ Pembeli', value: `<@${user.id}>`, inline: true },
+      { name: '🛍️ Pembeli', value: user.globalName || user.username, inline: true },
       { name: '🧾 Bukti Pembayaran', value: proofValue, inline: false },
     )
-    .setFooter({ text: `Terverifikasi oleh staff • Ticket #${ticket.number} • ${BRAND}` })
+    .setFooter({ text: `Terverifikasi oleh staff • ${BRAND}` })
     .setTimestamp();
 }
 

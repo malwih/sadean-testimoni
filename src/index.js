@@ -56,6 +56,7 @@ const client = new Client({
 const ticketTimers = new Map();
 const EVIDENCE_TIMEOUT_MS = 15 * 60 * 1000;
 const REJECTED_TIMEOUT_MS = 15 * 60 * 1000;
+const ACCEPTED_TIMEOUT_MS = 15 * 60 * 1000;
 const CLOSE_GRACE_MS = 5 * 1000;
 
 const setupCommand = new SlashCommandBuilder()
@@ -74,6 +75,24 @@ client.once(Events.ClientReady, async (readyClient) => {
     console.log('✅ Slash command /setup-testimoni berhasil didaftarkan.');
   } catch (error) {
     console.error('❌ Gagal mendaftarkan slash command:', error.message);
+  }
+
+  try {
+    const guild = await client.guilds.fetch(config.guildId).catch(() => null);
+    if (guild) {
+      const panelChannel = await guild.channels.fetch(config.sendChannelId).catch(() => null);
+      if (panelChannel && panelChannel.isTextBased() && panelChannel.send) {
+        const panelMessage = await panelChannel.send({
+          embeds: [embeds.panelEmbed()],
+          components: embeds.panelComponents(),
+        });
+        console.log(`✅ Panel testimoni otomatis dipasang di <#${panelChannel.id}>. [Lihat panel](${panelMessage.url})`);
+      } else {
+        console.warn('⚠️ Channel SEND_TESTIMONI_CHANNEL_ID tidak ditemukan atau bukan channel teks. Panel tidak dipasang otomatis.');
+      }
+    }
+  } catch (error) {
+    console.error('❌ Gagal memasang panel otomatis:', error.message);
   }
 
   await restoreTicketTimers();
@@ -488,9 +507,9 @@ async function handleStaffDecision(interaction, decision) {
     ticket.acceptedAt = Date.now();
     ticket.acceptedBy = interaction.user.id;
     ticket.publicMessageId = publicMessage.id;
-    ticket.deadline = null;
+    ticket.deadline = Date.now() + ACCEPTED_TIMEOUT_MS;
     store.saveTicket(ticket);
-    clearTicketTimer(ticket.channelId);
+    scheduleTicketTimeout(ticket);
 
     if (fallbackLinks.length && publicChannel) {
       const proofLinkMessages = buildFallbackProofMessages(ticket, fallbackLinks);
@@ -614,7 +633,7 @@ async function beginClosing(ticket, reason) {
 
 function scheduleTicketTimeout(ticket) {
   clearTicketTimer(ticket.channelId);
-  if (!['awaiting_evidence', 'rejected', 'closing'].includes(ticket.state) || !ticket.deadline) return;
+  if (!['awaiting_evidence', 'rejected', 'accepted', 'closing'].includes(ticket.state) || !ticket.deadline) return;
 
   const delay = Math.max(0, ticket.deadline - Date.now());
   const timer = setTimeout(() => handleTicketDeadline(ticket.channelId).catch((error) => {
@@ -659,6 +678,19 @@ async function handleTicketDeadline(channelId) {
     return;
   }
 
+  if (ticket.state === 'accepted') {
+    const channel = await client.channels.fetch(channelId).catch(() => null);
+    if (channel?.isTextBased() && channel.send) {
+      await channel.send({ embeds: [embeds.closingEmbed('Ticket ditutup otomatis 15 menit setelah testimoni disetujui.')] }).catch(() => null);
+    }
+    ticket.state = 'closing';
+    ticket.deadline = Date.now() + CLOSE_GRACE_MS;
+    ticket.closeReason = 'Ticket ditutup otomatis 15 menit setelah persetujuan.';
+    store.saveTicket(ticket);
+    scheduleTicketTimeout(ticket);
+    return;
+  }
+
   if (ticket.state === 'closing') {
     const channel = await client.channels.fetch(channelId).catch(() => null);
     if (channel) {
@@ -678,7 +710,7 @@ async function restoreTicketTimers() {
       continue;
     }
 
-    if (['awaiting_evidence', 'rejected', 'closing'].includes(ticket.state) && ticket.deadline) {
+    if (['awaiting_evidence', 'rejected', 'accepted', 'closing'].includes(ticket.state) && ticket.deadline) {
       scheduleTicketTimeout(ticket);
     } else if (ticket.state === 'processing_accept') {
       // Jika proses bot mati setelah state dikunci, kembalikan agar staff bisa mencoba lagi.
