@@ -1,0 +1,17 @@
+{
+  "name": "sadean-studio-testimoni-bot",
+  "version": "1.0.0",
+  "description": "Custom Discord testimonial ticket bot for Sadean Studio",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "check": "node --check src/index.js && node --check src/store.js && node --check src/embeds.js"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "dependencies": {
+    "discord.js": "^14.25.1",
+    "dotenv": "^16.6.1"
+  }
+}
