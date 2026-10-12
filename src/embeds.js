@@ -262,21 +262,16 @@ function closingEmbed(reason = 'Ticket ditutup.') {
     .setTimestamp();
 }
 
-/**
- * EMBED TESTIMONI PUBLIK
- * Susunan mengikuti contoh:
- * - Judul utama
- * - Deskripsi singkat
- * - Pembeli, User ID, Profile Link
- * - Rating
- * - Isi testimoni
- * - Bukti pembayaran
- */
+// EMBED TESTIMONI PUBLIK
+// Rating dan Isi Testimoni dibuat berdampingan.
+// Nilai keduanya menggunakan inline code agar tampil
+// dalam kotak abu-abu seperti User ID.
 function publicTestimonialEmbed(
   ticket,
   user,
   copiedFileNames = [],
-  fallbackLinks = []
+  fallbackLinks = [],
+  openTicketChannelId = null
 ) {
   const proofParts = [];
 
@@ -300,6 +295,17 @@ function publicTestimonialEmbed(
 
   const displayName = user.globalName || user.username;
 
+  const reviewText = truncate(
+    String(ticket.reviewText || '—')
+      .replace(/\s+/g, ' ')
+      .replace(/`/g, 'ˋ'),
+    900
+  );
+
+  const orderViaValue = openTicketChannelId
+    ? `<#${openTicketChannelId}>`
+    : 'Channel open-ticket';
+
   return new EmbedBuilder()
     .setColor(ORANGE)
     .setTitle('🌟 TESTIMONI PELANGGAN SADEAN STUDIO')
@@ -309,7 +315,7 @@ function publicTestimonialEmbed(
       'Terima kasih telah membagikan pengalamanmu bersama kami! 🧡'
     ].join('\n'))
     .addFields(
-      // Baris pertama: tiga informasi utama
+      // Baris pertama: Pembeli, User ID, Order Via
       {
         name: '👤 Pembeli',
         value: escapeMarkdown(displayName),
@@ -321,22 +327,24 @@ function publicTestimonialEmbed(
         inline: true
       },
       {
-        name: '🔗 Profile Link',
-        value: `[Klik di sini](https://discord.com/users/${user.id})`,
+        name: '🛒 Order Via',
+        value: orderViaValue,
         inline: true
       },
 
-      // Bagian berikutnya: informasi dengan lebar penuh
+      // Baris kedua: Rating dan Isi Testimoni
       {
         name: '⭐ Rating',
-        value: `${'⭐'.repeat(ticket.rating)} **${ticket.rating}/5**`,
-        inline: false
+        value: `\`${'⭐'.repeat(ticket.rating)} ${ticket.rating}/5\``,
+        inline: true
       },
       {
         name: '📝 Isi Testimoni',
-        value: truncate(ticket.reviewText, 1000),
-        inline: false
+        value: `\`${reviewText}\``,
+        inline: true
       },
+
+      // Baris terakhir: Bukti Pembayaran
       {
         name: '🧾 Bukti Pembayaran',
         value: proofValue,

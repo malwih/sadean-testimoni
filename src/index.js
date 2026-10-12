@@ -646,7 +646,7 @@ async function handleStaffDecision(interaction, decision) {
       const buyer = await client.users.fetch(ticket.userId);
       const { files, copiedNames, fallbackLinks: linksNeedingFallback } = await prepareEvidenceFiles(ticket.evidence || [], config.uploadCopyLimitBytes);
       fallbackLinks = linksNeedingFallback;
-      const publicEmbed = embeds.publicTestimonialEmbed(ticket, buyer, copiedNames, fallbackLinks);
+      const publicEmbed = embeds.publicTestimonialEmbed(ticket, buyer, copiedNames, fallbackLinks, config.openTicketChannelId);
       publicMessage = await publicChannel.send({
         embeds: [publicEmbed],
         files,
