@@ -285,31 +285,42 @@ async function handleTestimoniCommand(interaction) {
 
     await member.roles.add(role, 'Diberikan role testimoni oleh admin.');
 
-    const sendChannel = await interaction.guild.channels.fetch(config.sendChannelId).catch(() => null);
-    if (sendChannel && sendChannel.isTextBased() && sendChannel.send) {
-      await sendChannel.send({
-        content: `<@${targetUser.id}>`,
+    try {
+      await targetUser.send({
         embeds: [new EmbedBuilder()
           .setColor(0xF97316)
-          .setTitle('🧡 Ajakan Kirim Testimoni')
+          .setAuthor({
+            name: 'SADEAN STUDIO',
+            iconURL: interaction.guild.iconURL({ size: 128 }),
+          })
+          .setTitle('🧡 Terima Kasih Telah Membeli!')
           .setDescription([
-            `Halo ${targetUser.globalName || targetUser.username}!`,
+            `Halo ${targetUser.globalName || targetUser.username}! 👋`,
             '',
-            'Terima kasih sudah mempercayai **Sadean Studio**! 🎉',
+            'Terima kasih sudah mempercayai **Sadean Studio** untuk kebutuhan map atau asset Roblox kamu! 🎉',
             '',
-            'Kami mengundang kamu untuk berbagi pengalaman pembelianmu dengan mengirim testimoni.',
-            '',
-            '📝 **Cara mengirim testimoni:**',
-            '› Klik tombol **Send Testimoni** pada panel di atas pesan ini.',
-            '› Isi formulir testimoni dan rating bintang.',
-            '› Upload bukti transfer di ticket yang akan dibuat otomatis.',
+            'Kami sangat ingin mendengar pengalamanmu. Yuk, bagikan testimoni kamu!',
           ].join('\n'))
-          .setFooter({ text: 'SADEAN STUDIO • Ulasan pelanggan, pengalaman nyata' })
+          .addFields(
+            {
+              name: '📝 Cara Mengirim Testimoni',
+              value: [
+                '1. Buka channel **send-testimoni** di server.',
+                '2. Klik tombol **Send Testimoni** pada panel.',
+                '3. Isi formulir dan rating bintang.',
+                '4. Upload bukti transfer di ticket yang dibuat.',
+              ].join('\n'),
+              inline: false,
+            },
+          )
+          .setThumbnail(interaction.guild.iconURL({ size: 256 }))
+          .setFooter({ text: 'Ulasan pelanggan, pengalaman nyata • SADEAN STUDIO' })
           .setTimestamp()],
-        allowedMentions: { users: [targetUser.id] },
       }).catch((error) => {
-        console.error('Gagal mengirim pesan ajakan testimoni:', error.message);
+        console.error('Gagal mengirim DM ke user:', error.message);
       });
+    } catch (error) {
+      console.error('Gagal mengirim DM ke user:', error.message);
     }
 
     return interaction.editReply(`✅ Role testimoni berhasil diberikan kepada ${targetUser.tag}.`);
