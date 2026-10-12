@@ -38,6 +38,7 @@ const config = {
   sendChannelId: requiredEnv('SEND_TESTIMONI_CHANNEL_ID'),
   publicChannelId: requiredEnv('TESTIMONI_ORDER_CHANNEL_ID'),
   staffRoleId: requiredEnv('STAFF_ROLE_ID'),
+  testimoniRoleId: process.env.TESTIMONI_ROLE_ID?.trim() || null,
   ticketCategoryId: process.env.TICKET_CATEGORY_ID?.trim() || null,
   uploadCopyLimitBytes: (() => {
     const value = Number(process.env.PUBLIC_UPLOAD_COPY_LIMIT_MB || 8);
@@ -64,15 +65,24 @@ const setupCommand = new SlashCommandBuilder()
   .setDescription('Pasang panel Send Testimoni di channel yang dikonfigurasi.')
   .setDefaultMemberPermissions(PermissionFlagsBits.Administrator);
 
+const testimoniCommand = new SlashCommandBuilder()
+  .setName('testimoni')
+  .setDescription('Berikan role testimoni ke user tertentu.')
+  .addUserOption(option =>
+    option.setName('user')
+      .setDescription('User yang akan diberikan role testimoni')
+      .setRequired(true))
+  .setDefaultMemberPermissions(PermissionFlagsBits.Administrator);
+
 client.once(Events.ClientReady, async (readyClient) => {
   console.log(`✅ Login sebagai ${readyClient.user.tag}`);
 
   try {
     const rest = new REST({ version: '10' }).setToken(config.token);
     await rest.put(Routes.applicationGuildCommands(config.clientId, config.guildId), {
-      body: [setupCommand.toJSON()],
+      body: [setupCommand.toJSON(), testimoniCommand.toJSON()],
     });
-    console.log('✅ Slash command /setup-testimoni berhasil didaftarkan.');
+    console.log('✅ Slash command berhasil didaftarkan.');
   } catch (error) {
     console.error('❌ Gagal mendaftarkan slash command:', error.message);
   }
@@ -103,6 +113,9 @@ client.on(Events.InteractionCreate, async (interaction) => {
     if (interaction.isChatInputCommand()) {
       if (interaction.commandName === 'setup-testimoni') {
         await handleSetupCommand(interaction);
+      }
+      if (interaction.commandName === 'testimoni') {
+        await handleTestimoniCommand(interaction);
       }
       return;
     }
@@ -227,6 +240,43 @@ async function handleSetupCommand(interaction) {
     components: embeds.panelComponents(),
   });
   return interaction.editReply(`✅ Panel testimoni berhasil dipasang di <#${panelChannel.id}>. [Lihat panel](${panelMessage.url})`);
+}
+
+async function handleTestimoniCommand(interaction) {
+  if (!interaction.inGuild() || interaction.guildId !== config.guildId) {
+    return interaction.reply({ content: 'Command ini hanya dapat dipakai di server yang dikonfigurasi pada `.env`.', ephemeral: true });
+  }
+  if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) {
+    return interaction.reply({ content: 'Hanya administrator server yang dapat menggunakan command ini.', ephemeral: true });
+  }
+  if (!config.testimoniRoleId) {
+    return interaction.reply({ content: 'TESTIMONI_ROLE_ID belum dikonfigurasi di `.env`.', ephemeral: true });
+  }
+
+  const targetUser = interaction.options.getUser('user');
+  if (!targetUser) {
+    return interaction.reply({ content: 'User tidak ditemukan.', ephemeral: true });
+  }
+
+  await interaction.deferReply({ ephemeral: true });
+
+  try {
+    const member = await interaction.guild.members.fetch(targetUser.id).catch(() => null);
+    if (!member) {
+      return interaction.editReply('User tidak ditemukan di server ini.');
+    }
+
+    const role = await interaction.guild.roles.fetch(config.testimoniRoleId).catch(() => null);
+    if (!role) {
+      return interaction.editReply('Role testimoni tidak ditemukan. Periksa TESTIMONI_ROLE_ID di `.env`.');
+    }
+
+    await member.roles.add(role, 'Diberikan role testimoni oleh admin.');
+    return interaction.editReply(`✅ Role testimoni berhasil diberikan kepada ${targetUser.tag}.`);
+  } catch (error) {
+    console.error('Gagal memberikan role testimoni:', error);
+    return interaction.editReply(`❌ Gagal memberikan role testimoni: ${error.message}`);
+  }
 }
 
 async function handleButton(interaction) {
