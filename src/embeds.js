@@ -203,15 +203,15 @@ function publicTestimonialEmbed(ticket, user, copiedFileNames = [], fallbackLink
   return new EmbedBuilder()
     .setColor(GREEN)
     .setAuthor({
-      name: `Testimoni dari ${user.globalName || user.username}`,
-      iconURL: user.displayAvatarURL({ size: 128 }),
+      name: user.globalName || user.username,
+      iconURL: user.displayAvatarURL({ size: 64 }),
     })
-    .setTitle('🌟 Testimoni Pelanggan Sadean Studio')
-    .setDescription(`> ${truncate(ticket.reviewText, 2500).replace(/\n/g, '\n> ')}`)
+    .setTitle('🌟 Testimoni Pelanggan')
+    .setDescription(truncate(ticket.reviewText, 2500))
+    .setThumbnail(user.displayAvatarURL({ size: 4096 }))
     .addFields(
       { name: '⭐ Rating', value: `${'⭐'.repeat(ticket.rating)} **${ticket.rating}/5**`, inline: true },
-      { name: '🛍️ Pembeli', value: user.globalName || user.username, inline: true },
-      { name: '🧾 Bukti Pembayaran', value: proofValue, inline: false },
+      { name: '🧾 Bukti Pembayaran', value: proofValue, inline: true },
     )
     .setFooter({ text: `Terverifikasi oleh staff • ${BRAND}` })
     .setTimestamp();

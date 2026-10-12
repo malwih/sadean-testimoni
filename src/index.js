@@ -39,6 +39,7 @@ const config = {
   publicChannelId: requiredEnv('TESTIMONI_ORDER_CHANNEL_ID'),
   staffRoleId: requiredEnv('STAFF_ROLE_ID'),
   testimoniRoleId: process.env.TESTIMONI_ROLE_ID?.trim() || null,
+  openTicketChannelId: process.env.OPEN_TICKET_CHANNEL_ID?.trim() || null,
   ticketCategoryId: process.env.TICKET_CATEGORY_ID?.trim() || null,
   uploadCopyLimitBytes: (() => {
     const value = Number(process.env.PUBLIC_UPLOAD_COPY_LIMIT_MB || 8);
@@ -383,6 +384,16 @@ async function handleUntestimoniCommand(interaction) {
 
 async function handleButton(interaction) {
   if (interaction.customId === 'testimonial_panel_open') {
+    if (!config.testimoniRoleId) {
+      return interaction.reply({ content: 'Role testimoni belum dikonfigurasi.', ephemeral: true });
+    }
+    if (!interaction.member.roles.cache.has(config.testimoniRoleId)) {
+      const channelMention = config.openTicketChannelId ? `<#${config.openTicketChannelId}>` : 'channel open-ticket';
+      return interaction.reply({ 
+        content: `❌ Kamu belum memiliki role testimoni. Silakan lakukan pembelian/transaksi terlebih dahulu di ${channelMention} untuk mendapatkan role testimoni.`, 
+        ephemeral: true 
+      });
+    }
     return createTicket(interaction);
   }
 
