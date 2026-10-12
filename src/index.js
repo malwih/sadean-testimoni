@@ -390,7 +390,7 @@ async function handleButton(interaction) {
     if (!interaction.member.roles.cache.has(config.testimoniRoleId)) {
       const channelMention = config.openTicketChannelId ? `<#${config.openTicketChannelId}>` : 'channel open-ticket';
       return interaction.reply({ 
-        content: `❌ Kamu belum memiliki role testimoni. Silakan lakukan pembelian/transaksi terlebih dahulu di ${channelMention} untuk mendapatkan role testimoni.`, 
+        content: `❌ Kamu belum memiliki transaksi baru. Silakan lakukan pembelian/transaksi terlebih dahulu di ${channelMention} untuk mendapatkan akses send testimoni.`, 
         ephemeral: true 
       });
     }
