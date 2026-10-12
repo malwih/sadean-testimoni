@@ -200,18 +200,23 @@ function publicTestimonialEmbed(ticket, user, copiedFileNames = [], fallbackLink
   }
   const proofValue = truncate(proofParts.join('\n') || 'Bukti telah diverifikasi oleh staff.', 950);
 
+  const stars = '⭐'.repeat(ticket.rating);
+
   return new EmbedBuilder()
-    .setColor(GREEN)
+    .setColor(ORANGE)
     .setAuthor({
-      name: user.globalName || user.username,
-      iconURL: user.displayAvatarURL({ size: 64 }),
+      name: `${user.globalName || user.username}`,
+      iconURL: user.displayAvatarURL({ size: 128 }),
     })
-    .setTitle('🌟 Testimoni Pelanggan')
-    .setDescription(truncate(ticket.reviewText, 2500))
+    .setTitle('🌟 Ulasan Pelanggan')
+    .setDescription([
+      `${stars} **${ticket.rating}/5**`,
+      '',
+      `> ${truncate(ticket.reviewText, 2500).replace(/\n/g, '\n> ')}`,
+    ].join('\n'))
     .setThumbnail(user.displayAvatarURL({ size: 4096 }))
     .addFields(
-      { name: '⭐ Rating', value: `${'⭐'.repeat(ticket.rating)} **${ticket.rating}/5**`, inline: true },
-      { name: '🧾 Bukti Pembayaran', value: proofValue, inline: true },
+      { name: '🧾 Bukti Pembayaran', value: proofValue, inline: false },
     )
     .setFooter({ text: `Terverifikasi oleh staff • ${BRAND}` })
     .setTimestamp();
