@@ -67,19 +67,19 @@ const setupCommand = new SlashCommandBuilder()
 
 const testimoniCommand = new SlashCommandBuilder()
   .setName('testi')
-  .setDescription('Berikan role testimoni ke user atau semua member.')
-  .addStringOption(option =>
-    option.setName('target')
-      .setDescription('Target: "all" untuk semua member, atau mention user (@user)')
+  .setDescription('Berikan role testimoni ke user tertentu.')
+  .addUserOption(option =>
+    option.setName('user')
+      .setDescription('User yang akan diberikan role testimoni')
       .setRequired(true))
   .setDefaultMemberPermissions(PermissionFlagsBits.Administrator);
 
 const untestimoniCommand = new SlashCommandBuilder()
   .setName('untesti')
-  .setDescription('Hapus role testimoni dari user atau semua member.')
-  .addStringOption(option =>
-    option.setName('target')
-      .setDescription('Target: "all" untuk semua member, atau mention user (@user)')
+  .setDescription('Hapus role testimoni dari user tertentu.')
+  .addUserOption(option =>
+    option.setName('user')
+      .setDescription('User yang akan dihapus role testimoni')
       .setRequired(true))
   .setDefaultMemberPermissions(PermissionFlagsBits.Administrator);
 
@@ -265,7 +265,11 @@ async function handleTestimoniCommand(interaction) {
     return interaction.reply({ content: 'TESTIMONI_ROLE_ID belum dikonfigurasi di `.env`.', ephemeral: true });
   }
 
-  const target = interaction.options.getString('target');
+  const targetUser = interaction.options.getUser('user');
+  if (!targetUser) {
+    return interaction.reply({ content: 'User tidak ditemukan.', ephemeral: true });
+  }
+
   await interaction.deferReply({ ephemeral: true });
 
   const role = await interaction.guild.roles.fetch(config.testimoniRoleId).catch(() => null);
@@ -276,140 +280,63 @@ async function handleTestimoniCommand(interaction) {
   const sendChannel = await interaction.guild.channels.fetch(config.sendChannelId).catch(() => null);
   const channelLink = sendChannel ? `https://discord.com/channels/${interaction.guildId}/${config.sendChannelId}` : null;
 
-  if (target.toLowerCase() === 'all') {
-    try {
-      const members = await interaction.guild.members.fetch();
-      let successCount = 0;
-      let failCount = 0;
-
-      for (const [_, member] of members) {
-        if (member.user.bot) continue;
-        if (member.roles.cache.has(role.id)) continue;
-
-        try {
-          await member.roles.add(role, 'Diberikan role testimoni oleh admin (bulk).');
-          successCount++;
-
-          try {
-            await member.user.send({
-              embeds: [new EmbedBuilder()
-                .setColor(0xF97316)
-                .setAuthor({
-                  name: 'SADEAN STUDIO',
-                  iconURL: interaction.guild.iconURL({ size: 128 }),
-                })
-                .setTitle('🧡 Terima Kasih Telah Membeli!')
-                .setDescription([
-                  `Halo ${member.user.globalName || member.user.username}! 👋`,
-                  '',
-                  'Terima kasih sudah mempercayai **Sadean Studio** untuk kebutuhan map atau asset Roblox kamu! 🎉',
-                  '',
-                  'Kami sangat ingin mendengar pengalamanmu. Yuk, bagikan testimoni kamu!',
-                ].join('\n'))
-                .addFields(
-                  {
-                    name: '📝 Cara Mengirim Testimoni',
-                    value: channelLink
-                      ? [
-                          `1. [Buka channel send-testimoni](${channelLink}) di server.`,
-                          '2. Klik tombol **Send Testimoni** pada panel.',
-                          '3. Isi formulir dan rating bintang.',
-                          '4. Upload bukti transfer di ticket yang dibuat.',
-                        ].join('\n')
-                      : [
-                          '1. Buka channel **send-testimoni** di server.',
-                          '2. Klik tombol **Send Testimoni** pada panel.',
-                          '3. Isi formulir dan rating bintang.',
-                          '4. Upload bukti transfer di ticket yang dibuat.',
-                        ].join('\n'),
-                    inline: false,
-                  },
-                )
-                .setThumbnail(interaction.guild.iconURL({ size: 256 }))
-                .setFooter({ text: 'Ulasan pelanggan, pengalaman nyata • SADEAN STUDIO' })
-                .setTimestamp()],
-            }).catch((error) => {
-              console.error(`Gagal mengirim DM ke ${member.user.tag}:`, error.message);
-            });
-          } catch (error) {
-            console.error(`Gagal mengirim DM ke ${member.user.tag}:`, error.message);
-          }
-        } catch (error) {
-          console.error(`Gagal memberikan role ke ${member.user.tag}:`, error.message);
-          failCount++;
-        }
-      }
-
-      return interaction.editReply(`✅ Role testimoni berhasil diberikan kepada ${successCount} member. ${failCount > 0 ? `Gagal: ${failCount} member.` : ''}`);
-    } catch (error) {
-      console.error('Gagal memberikan role testimoni bulk:', error);
-      return interaction.editReply(`❌ Gagal memberikan role testimoni: ${error.message}`);
-    }
-  } else {
-    const userIdMatch = target.match(/^(?:<@!?(\d+)>|(\d+))$/);
-    if (!userIdMatch) {
-      return interaction.editReply('Format target tidak valid. Gunakan "all" atau mention user (@user).');
+  try {
+    const member = await interaction.guild.members.fetch(targetUser.id).catch(() => null);
+    if (!member) {
+      return interaction.editReply('User tidak ditemukan di server ini.');
     }
 
-    const userId = userIdMatch[1] || userIdMatch[2];
+    await member.roles.add(role, 'Diberikan role testimoni oleh admin.');
+
     try {
-      const member = await interaction.guild.members.fetch(userId).catch(() => null);
-      if (!member) {
-        return interaction.editReply('User tidak ditemukan di server ini.');
-      }
-
-      await member.roles.add(role, 'Diberikan role testimoni oleh admin.');
-
-      try {
-        await member.user.send({
-          embeds: [new EmbedBuilder()
-            .setColor(0xF97316)
-            .setAuthor({
-              name: 'SADEAN STUDIO',
-              iconURL: interaction.guild.iconURL({ size: 128 }),
-            })
-            .setTitle('🧡 Terima Kasih Telah Membeli!')
-            .setDescription([
-              `Halo ${member.user.globalName || member.user.username}! 👋`,
-              '',
-              'Terima kasih sudah mempercayai **Sadean Studio** untuk kebutuhan map atau asset Roblox kamu! 🎉',
-              '',
-              'Kami sangat ingin mendengar pengalamanmu. Yuk, bagikan testimoni kamu!',
-            ].join('\n'))
-            .addFields(
-              {
-                name: '📝 Cara Mengirim Testimoni',
-                value: channelLink
-                  ? [
-                      `1. [Buka channel send-testimoni](${channelLink}) di server.`,
-                      '2. Klik tombol **Send Testimoni** pada panel.',
-                      '3. Isi formulir dan rating bintang.',
-                      '4. Upload bukti transfer di ticket yang dibuat.',
-                    ].join('\n')
-                  : [
-                      '1. Buka channel **send-testimoni** di server.',
-                      '2. Klik tombol **Send Testimoni** pada panel.',
-                      '3. Isi formulir dan rating bintang.',
-                      '4. Upload bukti transfer di ticket yang dibuat.',
-                    ].join('\n'),
-                inline: false,
-              },
-            )
-            .setThumbnail(interaction.guild.iconURL({ size: 256 }))
-            .setFooter({ text: 'Ulasan pelanggan, pengalaman nyata • SADEAN STUDIO' })
-            .setTimestamp()],
-        }).catch((error) => {
-          console.error('Gagal mengirim DM ke user:', error.message);
-        });
-      } catch (error) {
+      await targetUser.send({
+        embeds: [new EmbedBuilder()
+          .setColor(0xF97316)
+          .setAuthor({
+            name: 'SADEAN STUDIO',
+            iconURL: interaction.guild.iconURL({ size: 128 }),
+          })
+          .setTitle('🧡 Terima Kasih Telah Membeli!')
+          .setDescription([
+            `Halo ${targetUser.globalName || targetUser.username}! 👋`,
+            '',
+            'Terima kasih sudah mempercayai **Sadean Studio** untuk kebutuhan map atau asset Roblox kamu! 🎉',
+            '',
+            'Kami sangat ingin mendengar pengalamanmu. Yuk, bagikan testimoni kamu!',
+          ].join('\n'))
+          .addFields(
+            {
+              name: '📝 Cara Mengirim Testimoni',
+              value: channelLink
+                ? [
+                    `1. [Buka channel send-testimoni](${channelLink}) di server.`,
+                    '2. Klik tombol **Send Testimoni** pada panel.',
+                    '3. Isi formulir dan rating bintang.',
+                    '4. Upload bukti transfer di ticket yang dibuat.',
+                  ].join('\n')
+                : [
+                    '1. Buka channel **send-testimoni** di server.',
+                    '2. Klik tombol **Send Testimoni** pada panel.',
+                    '3. Isi formulir dan rating bintang.',
+                    '4. Upload bukti transfer di ticket yang dibuat.',
+                  ].join('\n'),
+              inline: false,
+            },
+          )
+          .setThumbnail(interaction.guild.iconURL({ size: 256 }))
+          .setFooter({ text: 'Ulasan pelanggan, pengalaman nyata • SADEAN STUDIO' })
+          .setTimestamp()],
+      }).catch((error) => {
         console.error('Gagal mengirim DM ke user:', error.message);
-      }
-
-      return interaction.editReply(`✅ Role testimoni berhasil diberikan kepada ${member.user.tag}.`);
+      });
     } catch (error) {
-      console.error('Gagal memberikan role testimoni:', error);
-      return interaction.editReply(`❌ Gagal memberikan role testimoni: ${error.message}`);
+      console.error('Gagal mengirim DM ke user:', error.message);
     }
+
+    return interaction.editReply(`✅ Role testimoni berhasil diberikan kepada ${targetUser.tag}.`);
+  } catch (error) {
+    console.error('Gagal memberikan role testimoni:', error);
+    return interaction.editReply(`❌ Gagal memberikan role testimoni: ${error.message}`);
   }
 }
 
@@ -424,7 +351,11 @@ async function handleUntestimoniCommand(interaction) {
     return interaction.reply({ content: 'TESTIMONI_ROLE_ID belum dikonfigurasi di `.env`.', ephemeral: true });
   }
 
-  const target = interaction.options.getString('target');
+  const targetUser = interaction.options.getUser('user');
+  if (!targetUser) {
+    return interaction.reply({ content: 'User tidak ditemukan.', ephemeral: true });
+  }
+
   await interaction.deferReply({ ephemeral: true });
 
   const role = await interaction.guild.roles.fetch(config.testimoniRoleId).catch(() => null);
@@ -432,53 +363,21 @@ async function handleUntestimoniCommand(interaction) {
     return interaction.editReply('Role testimoni tidak ditemukan. Periksa TESTIMONI_ROLE_ID di `.env`.');
   }
 
-  if (target.toLowerCase() === 'all') {
-    try {
-      const members = await interaction.guild.members.fetch();
-      let successCount = 0;
-      let failCount = 0;
-
-      for (const [_, member] of members) {
-        if (member.user.bot) continue;
-        if (!member.roles.cache.has(role.id)) continue;
-
-        try {
-          await member.roles.remove(role, 'Dihapus role testimoni oleh admin (bulk).');
-          successCount++;
-        } catch (error) {
-          console.error(`Gagal menghapus role dari ${member.user.tag}:`, error.message);
-          failCount++;
-        }
-      }
-
-      return interaction.editReply(`✅ Role testimoni berhasil dihapus dari ${successCount} member. ${failCount > 0 ? `Gagal: ${failCount} member.` : ''}`);
-    } catch (error) {
-      console.error('Gagal menghapus role testimoni bulk:', error);
-      return interaction.editReply(`❌ Gagal menghapus role testimoni: ${error.message}`);
-    }
-  } else {
-    const userIdMatch = target.match(/^(?:<@!?(\d+)>|(\d+))$/);
-    if (!userIdMatch) {
-      return interaction.editReply('Format target tidak valid. Gunakan "all" atau mention user (@user).');
+  try {
+    const member = await interaction.guild.members.fetch(targetUser.id).catch(() => null);
+    if (!member) {
+      return interaction.editReply('User tidak ditemukan di server ini.');
     }
 
-    const userId = userIdMatch[1] || userIdMatch[2];
-    try {
-      const member = await interaction.guild.members.fetch(userId).catch(() => null);
-      if (!member) {
-        return interaction.editReply('User tidak ditemukan di server ini.');
-      }
-
-      if (!member.roles.cache.has(role.id)) {
-        return interaction.editReply(`User ${member.user.tag} tidak memiliki role testimoni.`);
-      }
-
-      await member.roles.remove(role, 'Dihapus role testimoni oleh admin.');
-      return interaction.editReply(`✅ Role testimoni berhasil dihapus dari ${member.user.tag}.`);
-    } catch (error) {
-      console.error('Gagal menghapus role testimoni:', error);
-      return interaction.editReply(`❌ Gagal menghapus role testimoni: ${error.message}`);
+    if (!member.roles.cache.has(role.id)) {
+      return interaction.editReply(`User ${targetUser.tag} tidak memiliki role testimoni.`);
     }
+
+    await member.roles.remove(role, 'Dihapus role testimoni oleh admin.');
+    return interaction.editReply(`✅ Role testimoni berhasil dihapus dari ${targetUser.tag}.`);
+  } catch (error) {
+    console.error('Gagal menghapus role testimoni:', error);
+    return interaction.editReply(`❌ Gagal menghapus role testimoni: ${error.message}`);
   }
 }
 
