@@ -342,7 +342,7 @@ async function createTicket(interaction) {
     const message = await channel.send({
       content: `<@${interaction.user.id}>`,
       embeds: [embeds.ticketWelcomeEmbed(ticket, interaction.user)],
-      components: [ticketActionRow(channel.id)],
+      components: [embeds.ticketActionRow(channel.id)],
       allowedMentions: { users: [interaction.user.id] },
     });
     ticket.ticketMessageId = message.id;
