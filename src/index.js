@@ -286,6 +286,9 @@ async function handleTestimoniCommand(interaction) {
     await member.roles.add(role, 'Diberikan role testimoni oleh admin.');
 
     try {
+      const sendChannel = await interaction.guild.channels.fetch(config.sendChannelId).catch(() => null);
+      const channelLink = sendChannel ? `https://discord.com/channels/${interaction.guildId}/${config.sendChannelId}` : null;
+
       await targetUser.send({
         embeds: [new EmbedBuilder()
           .setColor(0xF97316)
@@ -304,12 +307,19 @@ async function handleTestimoniCommand(interaction) {
           .addFields(
             {
               name: '📝 Cara Mengirim Testimoni',
-              value: [
-                '1. Buka channel **send-testimoni** di server.',
-                '2. Klik tombol **Send Testimoni** pada panel.',
-                '3. Isi formulir dan rating bintang.',
-                '4. Upload bukti transfer di ticket yang dibuat.',
-              ].join('\n'),
+              value: channelLink
+                ? [
+                    `1. [Buka channel send-testimoni](${channelLink}) di server.`,
+                    '2. Klik tombol **Send Testimoni** pada panel.',
+                    '3. Isi formulir dan rating bintang.',
+                    '4. Upload bukti transfer di ticket yang dibuat.',
+                  ].join('\n')
+                : [
+                    '1. Buka channel **send-testimoni** di server.',
+                    '2. Klik tombol **Send Testimoni** pada panel.',
+                    '3. Isi formulir dan rating bintang.',
+                    '4. Upload bukti transfer di ticket yang dibuat.',
+                  ].join('\n'),
               inline: false,
             },
           )
