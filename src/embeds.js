@@ -351,6 +351,7 @@ function publicTestimonialEmbed(
         inline: false
       },
     )
+    .setImage(user.displayAvatarURL({ size: 4096 }))
     .setFooter({
       text: `Terverifikasi oleh staff • ${BRAND}`
     })
