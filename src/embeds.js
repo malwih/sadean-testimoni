@@ -308,7 +308,7 @@ function publicTestimonialEmbed(
 
   return new EmbedBuilder()
     .setColor(ORANGE)
-    .setTitle('🌟 TESTIMONI PELANGGAN SADEAN STUDIO')
+    .setTitle('🌟 TESTIMONI — SADEAN STUDIO')
     .setDescription([
       '✅ Testimoni pembelian ini telah diperiksa dan disetujui oleh staff Sadean Studio.',
       '',
@@ -351,7 +351,7 @@ function publicTestimonialEmbed(
         inline: false
       },
     )
-    .setImage(user.displayAvatarURL({ size: 4096 }))
+    .setThumbnail(user.displayAvatarURL({ size: 256 }))
     .setFooter({
       text: `Terverifikasi oleh staff • ${BRAND}`
     })
