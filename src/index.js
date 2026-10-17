@@ -156,15 +156,26 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
 client.on(Events.GuildMemberAdd, async (member) => {
   try {
-    if (member.guildId !== config.guildId) return;
-    if (!config.staffRoleId) return;
+    console.log(`[GuildMemberAdd] Member joined: ${member.user.tag} (${member.user.id}) in guild ${member.guildId}`);
+    if (member.guildId !== config.guildId) {
+      console.log(`[GuildMemberAdd] Guild ID mismatch. Expected: ${config.guildId}, Got: ${member.guildId}`);
+      return;
+    }
+    if (!config.staffRoleId) {
+      console.log(`[GuildMemberAdd] STAFF_ROLE_ID not configured`);
+      return;
+    }
 
     const staffRole = await member.guild.roles.fetch(config.staffRoleId).catch(() => null);
-    if (!staffRole) return;
+    if (!staffRole) {
+      console.log(`[GuildMemberAdd] Staff role not found: ${config.staffRoleId}`);
+      return;
+    }
 
     const staffMembers = await member.guild.members.fetch({ force: true }).then(members => 
       members.filter(m => m.roles.cache.has(config.staffRoleId))
     );
+    console.log(`[GuildMemberAdd] Found ${staffMembers.size} staff members to notify`);
 
     const joinEmbed = new EmbedBuilder()
       .setColor(0x00ff00)
