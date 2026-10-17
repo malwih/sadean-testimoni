@@ -848,9 +848,19 @@ function getValidatedTicket(interaction, channelId) {
 }
 
 function hasStaffRole(interaction, roleId) {
-  const roles = interaction.member?.roles;
-  if (roles?.cache?.has) return roles.cache.has(roleId);
-  if (Array.isArray(roles)) return roles.includes(roleId);
+  if (!interaction.member) return false;
+  const roles = interaction.member.roles;
+  if (roles?.cache?.has) {
+    const hasRole = roles.cache.has(roleId);
+    console.log(`[hasStaffRole] User: ${interaction.user.tag}, RoleID: ${roleId}, HasRole: ${hasRole}, UserRoles: ${Array.from(roles.cache.keys()).join(', ')}`);
+    return hasRole;
+  }
+  if (Array.isArray(roles)) {
+    const hasRole = roles.includes(roleId);
+    console.log(`[hasStaffRole] User: ${interaction.user.tag}, RoleID: ${roleId}, HasRole: ${hasRole}, UserRoles: ${roles.join(', ')}`);
+    return hasRole;
+  }
+  console.log(`[hasStaffRole] User: ${interaction.user.tag}, RoleID: ${roleId}, No roles found`);
   return false;
 }
 
