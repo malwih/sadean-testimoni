@@ -25,10 +25,7 @@ function panelEmbed() {
       '📝 **Cara mengirim testimoni**',
       '› Tekan tombol **Send Testimoni** di bawah.',
       '› Isi pesan testimoni dan pilih rating bintang.',
-      '› Upload bukti transfer di ticket yang dibuat.',
-      '› Tunggu staff memeriksa dan menyetujui testimoni kamu.',
-      '',
-      '🔒 Bukti pembayaran digunakan untuk verifikasi oleh staff. Jangan kirim informasi sensitif yang tidak diperlukan.'
+      '› Tunggu staff memeriksa dan menyetujui testimoni kamu.'
     ].join('\n'))
     .setFooter({
       text: `${BRAND} • Ulasan pelanggan, pengalaman nyata`
@@ -59,10 +56,8 @@ function ticketWelcomeEmbed(ticket, user) {
       '',
       '📌 **Alur ticket**',
       '1. Isi formulir testimoni.',
-      '2. Upload bukti transfer berupa gambar, PDF, atau file lain melalui chat ticket.',
-      '3. Staff akan memeriksa bukti dan memutuskan untuk menerima atau menolak testimoni.',
+      '2. Staff akan memeriksa dan memutuskan untuk menerima atau menolak testimoni.',
       '',
-      '⏳ Setelah formulir dikirim, kamu punya **15 menit** untuk mengunggah bukti. Ticket akan ditutup otomatis jika bukti tidak diterima tepat waktu.',
       '🔐 Ticket ini hanya bisa dilihat oleh kamu, staff, dan bot.'
     ].join('\n'))
     .addFields(
@@ -106,55 +101,12 @@ function ticketActionRow(channelId, options = {}) {
   );
 }
 
-function evidenceInstructionEmbed(ticket) {
-  return new EmbedBuilder()
-    .setColor(BLUE)
-    .setTitle('🧾 Formulir Tersimpan — Upload Bukti')
-    .setDescription([
-      'Pesan testimoni dan rating kamu sudah tersimpan.',
-      '',
-      '**Sekarang kirim bukti transfer sebagai lampiran di chat ini.**',
-      'Format file boleh JPG, PNG, PDF, atau format file lain yang didukung Discord.',
-      '',
-      '⏳ Batas waktu: **15 menit** sejak formulir dikirim. Jika tidak ada lampiran dalam waktu tersebut, ticket otomatis ditutup.',
-      '⚠️ Kirim file menggunakan tombol **+ / Attach Files** atau drag-and-drop file ke chat.'
-    ].join('\n'))
-    .addFields(
-      {
-        name: '⭐ Rating',
-        value: `${'⭐'.repeat(ticket.rating)} (${ticket.rating}/5)`,
-        inline: true
-      },
-      {
-        name: '📝 Pesan',
-        value: truncate(ticket.reviewText, 900),
-        inline: false
-      },
-    )
-    .setFooter({
-      text: `Ticket #${ticket.number} • Menunggu bukti pembayaran`
-    })
-    .setTimestamp();
-}
-
 function staffReviewEmbed(ticket, user) {
-  const evidenceText = (ticket.evidence || [])
-    .map((file, index) => {
-      const size = Number.isFinite(file.size)
-        ? ` • ${formatBytes(file.size)}`
-        : '';
-
-      return `**${index + 1}.** [${escapeMarkdown(
-        file.name || `File ${index + 1}`
-      )}](${file.url})${size}`;
-    })
-    .join('\n');
-
   return new EmbedBuilder()
     .setColor(ORANGE)
     .setTitle(`🔎 Review Testimoni #${ticket.number}`)
     .setDescription(
-      'Bukti pembayaran sudah diterima. Staff akan menentukan accept atau reject setelah memeriksa bukti.'
+      'Formulir testimoni sudah diterima. Staff akan menentukan accept atau reject.'
     )
     .addFields(
       {
@@ -170,14 +122,6 @@ function staffReviewEmbed(ticket, user) {
       {
         name: '📝 Pesan Testimoni',
         value: truncate(ticket.reviewText, 1000),
-        inline: false
-      },
-      {
-        name: '🧾 Bukti Pembayaran',
-        value: truncate(
-          evidenceText || 'Tidak ditemukan tautan bukti.',
-          1000
-        ),
         inline: false
       },
     )
@@ -238,19 +182,6 @@ function rejectedTicketEmbed(ticket, staffUser) {
     .setTimestamp();
 }
 
-function evidenceTimeoutEmbed(ticket) {
-  return new EmbedBuilder()
-    .setColor(RED)
-    .setTitle('⌛ Ticket Ditutup Otomatis')
-    .setDescription(
-      'Bukti transfer tidak diterima dalam 15 menit setelah formulir dikirim. Ticket ini akan dihapus sebentar lagi.'
-    )
-    .setFooter({
-      text: `Ticket #${ticket.number} • Waktu unggah bukti habis`
-    })
-    .setTimestamp();
-}
-
 function closingEmbed(reason = 'Ticket ditutup.') {
   return new EmbedBuilder()
     .setColor(GRAY)
@@ -269,30 +200,8 @@ function closingEmbed(reason = 'Ticket ditutup.') {
 function publicTestimonialEmbed(
   ticket,
   user,
-  copiedFileNames = [],
-  fallbackLinks = [],
   openTicketChannelId = null
 ) {
-  const proofParts = [];
-
-  if (copiedFileNames.length) {
-    proofParts.push(
-      `✅ ${copiedFileNames.length} file bukti pembayaran dilampirkan.`
-    );
-  }
-
-  if (fallbackLinks.length) {
-    proofParts.push(
-      `🔗 ${fallbackLinks.length} bukti tambahan ditautkan pada pesan berikutnya.`
-    );
-  }
-
-  const proofValue = truncate(
-    proofParts.join('\n') ||
-      'Bukti pembayaran telah diverifikasi oleh staff.',
-    950
-  );
-
   const displayName = user.globalName || user.username;
 
   const reviewText = truncate(
@@ -342,13 +251,6 @@ function publicTestimonialEmbed(
         name: '📝 Isi Testimoni',
         value: `\`${reviewText}\``,
         inline: true
-      },
-
-      // Baris terakhir: Bukti Pembayaran
-      {
-        name: '🧾 Bukti Pembayaran',
-        value: proofValue,
-        inline: false
       },
     )
     .setThumbnail(user.displayAvatarURL({ size: 256 }))
@@ -410,12 +312,10 @@ module.exports = {
   panelComponents,
   ticketWelcomeEmbed,
   ticketActionRow,
-  evidenceInstructionEmbed,
   staffReviewEmbed,
   staffReviewComponents,
   acceptedTicketEmbed,
   rejectedTicketEmbed,
-  evidenceTimeoutEmbed,
   closingEmbed,
   publicTestimonialEmbed,
   acceptedReviewEmbed,

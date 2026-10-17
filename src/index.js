@@ -41,10 +41,6 @@ const config = {
   testimoniRoleId: process.env.TESTIMONI_ROLE_ID?.trim() || null,
   openTicketChannelId: process.env.OPEN_TICKET_CHANNEL_ID?.trim() || null,
   ticketCategoryId: process.env.TICKET_CATEGORY_ID?.trim() || null,
-  uploadCopyLimitBytes: (() => {
-    const value = Number(process.env.PUBLIC_UPLOAD_COPY_LIMIT_MB || 8);
-    return (Number.isFinite(value) && value >= 0 ? value : 8) * 1024 * 1024;
-  })(),
 };
 
 const client = new Client({
@@ -56,7 +52,6 @@ const client = new Client({
 });
 
 const ticketTimers = new Map();
-const EVIDENCE_TIMEOUT_MS = 15 * 60 * 1000;
 const REJECTED_TIMEOUT_MS = 15 * 60 * 1000;
 const ACCEPTED_TIMEOUT_MS = 15 * 60 * 1000;
 const CLOSE_GRACE_MS = 5 * 1000;
@@ -158,72 +153,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
   }
 });
 
-client.on(Events.MessageCreate, async (message) => {
-  try {
-    if (!message.guild || message.author.bot || message.attachments.size === 0) return;
-
-    const ticket = store.getTicket(message.channelId);
-    if (!ticket || ticket.state !== 'awaiting_evidence') return;
-    if (message.author.id !== ticket.userId) return;
-
-    // Ubah state secara sinkron sebelum operasi async agar unggahan ganda tidak diproses dua kali.
-    ticket.evidence = [...message.attachments.values()].map((attachment) => ({
-      name: attachment.name || 'lampiran',
-      url: attachment.url,
-      contentType: attachment.contentType || null,
-      size: attachment.size || 0,
-    }));
-    ticket.state = 'awaiting_staff_review';
-    ticket.deadline = null;
-    ticket.evidenceMessageId = message.id;
-    store.saveTicket(ticket);
-    clearTicketTimer(ticket.channelId);
-
-    try {
-      await message.channel.permissionOverwrites.edit(ticket.userId, {
-        SendMessages: false,
-        AttachFiles: false,
-      }, 'Bukti testimoni diterima; mengunci ticket sambil menunggu review staff.');
-    } catch (permissionError) {
-      console.error(`Gagal mengunci ticket ${ticket.number}:`, permissionError.message);
-    }
-
-    const user = await client.users.fetch(ticket.userId).catch(() => message.author);
-    const reviewMessage = await message.channel.send({
-      embeds: [embeds.staffReviewEmbed(ticket, user)],
-      components: embeds.staffReviewComponents(ticket.channelId),
-      allowedMentions: { parse: [] },
-    });
-    ticket.reviewMessageId = reviewMessage.id;
-    store.saveTicket(ticket);
-
-    const mainMessage = await fetchTicketMainMessage(ticket);
-    if (mainMessage) {
-      await mainMessage.edit({
-        embeds: [new EmbedBuilder()
-          .setColor(embeds.ORANGE)
-          .setTitle(`🔐 Ticket #${ticket.number} • Menunggu Review Staff`)
-          .setDescription([
-            'Bukti pembayaran telah diterima. Terima kasih!',
-            '',
-            '🔒 Chat ticket sekarang dikunci agar data tidak berubah selama staff memeriksa testimoni.',
-            'Staff akan memilih **ACCEPT** atau **REJECT** pada panel review di bawah.',
-          ].join('\n'))
-          .addFields(
-            { name: '⭐ Rating', value: `${'⭐'.repeat(ticket.rating)} (${ticket.rating}/5)`, inline: true },
-            { name: '📎 Jumlah lampiran', value: String(ticket.evidence.length), inline: true },
-          )
-          .setFooter({ text: `Ticket #${ticket.number} • Status: menunggu staff` })
-          .setTimestamp()],
-        components: [closeOnlyRow(ticket.channelId)],
-      });
-    }
-    console.log(`📎 Bukti diterima untuk ticket #${ticket.number}.`);
-  } catch (error) {
-    console.error('MessageCreate error:', error);
-  }
-});
-
 client.on(Events.ChannelDelete, (channel) => {
   clearTicketTimer(channel.id);
   if (store.getTicket(channel.id)) {
@@ -313,13 +242,13 @@ async function handleTestimoniCommand(interaction) {
                     `1. [Buka channel send-testimoni](${channelLink}) di server.`,
                     '2. Klik tombol **Send Testimoni** pada panel.',
                     '3. Isi formulir dan rating bintang.',
-                    '4. Upload bukti transfer di ticket yang dibuat.',
+                    '4. Tunggu staff memeriksa dan menyetujui testimoni kamu.',
                   ].join('\n')
                 : [
                     '1. Buka channel **send-testimoni** di server.',
                     '2. Klik tombol **Send Testimoni** pada panel.',
                     '3. Isi formulir dan rating bintang.',
-                    '4. Upload bukti transfer di ticket yang dibuat.',
+                    '4. Tunggu staff memeriksa dan menyetujui testimoni kamu.',
                   ].join('\n'),
               inline: false,
             },
@@ -401,13 +330,14 @@ async function handleButton(interaction) {
     const channelId = interaction.customId.split(':')[1];
     const ticket = getValidatedTicket(interaction, channelId);
     if (!ticket) return interaction.reply({ content: 'Ticket tidak ditemukan atau tombol ini tidak berlaku di channel ini.', ephemeral: true });
-    if (interaction.user.id !== ticket.userId) {
+    const isStaff = hasStaffRole(interaction, config.staffRoleId);
+    if (!isStaff && interaction.user.id !== ticket.userId) {
       return interaction.reply({ content: 'Hanya pemilik ticket yang dapat mengisi formulir testimoni.', ephemeral: true });
     }
     if (ticket.state !== 'awaiting_form') {
       return interaction.reply({ content: 'Formulir sudah dikirim atau ticket sedang diproses. Kamu tidak perlu mengirim ulang.', ephemeral: true });
     }
-    return interaction.showModal(buildTestimonialModal(ticket.channelId));
+    return interaction.showModal(buildTestimonialModal(ticket.channelId, isStaff));
   }
 
   if (interaction.customId.startsWith('ticket_close:')) {
@@ -516,7 +446,6 @@ async function createTicket(interaction) {
     reviewMessageId: null,
     reviewText: null,
     rating: null,
-    evidence: [],
   };
   store.saveTicket(ticket);
 
@@ -538,7 +467,7 @@ async function createTicket(interaction) {
   return interaction.editReply(`✅ Ticket testimoni kamu berhasil dibuat: <#${channel.id}>`);
 }
 
-function buildTestimonialModal(channelId) {
+function buildTestimonialModal(channelId, isStaff = false) {
   const reviewInput = new TextInputBuilder()
     .setCustomId('testimonial_text')
     .setStyle(TextInputStyle.Paragraph)
@@ -559,19 +488,37 @@ function buildTestimonialModal(channelId) {
       { label: '⭐⭐⭐⭐⭐ 5 Bintang — Sangat Puas', value: '5', description: 'Pengalaman sangat memuaskan' },
     );
 
+  const components = [
+    new LabelBuilder()
+      .setLabel('Pesan Testimoni')
+      .setDescription('Tulis ulasan yang jujur (5–1000 karakter).')
+      .setTextInputComponent(reviewInput),
+    new LabelBuilder()
+      .setLabel('Rating Bintang')
+      .setDescription('Pilih satu nilai dari 1 sampai 5 bintang.')
+      .setStringSelectMenuComponent(ratingSelect),
+  ];
+
+  if (isStaff) {
+    const usernameInput = new TextInputBuilder()
+      .setCustomId('testimonial_username')
+      .setStyle(TextInputStyle.Short)
+      .setPlaceholder('Username atau User ID Discord pembeli (contoh: @username atau 123456789012345678)')
+      .setMinLength(2)
+      .setMaxLength(100)
+      .setRequired(false);
+    components.push(
+      new LabelBuilder()
+        .setLabel('Username Pembeli (Opsional - Staff Only)')
+        .setDescription('Masukkan username atau User ID Discord pembeli asli. Kosongkan jika testimoni untuk diri sendiri.')
+        .setTextInputComponent(usernameInput)
+    );
+  }
+
   return new ModalBuilder()
     .setCustomId(`testimonial_modal:${channelId}`)
     .setTitle('📝 Kirim Testimoni')
-    .addLabelComponents(
-      new LabelBuilder()
-        .setLabel('Pesan Testimoni')
-        .setDescription('Tulis ulasan yang jujur (5–1000 karakter).')
-        .setTextInputComponent(reviewInput),
-      new LabelBuilder()
-        .setLabel('Rating Bintang')
-        .setDescription('Pilih satu nilai dari 1 sampai 5 bintang.')
-        .setStringSelectMenuComponent(ratingSelect),
-    );
+    .addLabelComponents(...components);
 }
 
 async function handleModalSubmit(interaction) {
@@ -581,7 +528,8 @@ async function handleModalSubmit(interaction) {
   if (!ticket || interaction.channelId !== channelId || ticket.guildId !== interaction.guildId) {
     return interaction.reply({ content: 'Ticket tidak ditemukan atau sudah ditutup.', ephemeral: true });
   }
-  if (interaction.user.id !== ticket.userId) {
+  const isStaff = hasStaffRole(interaction, config.staffRoleId);
+  if (!isStaff && interaction.user.id !== ticket.userId) {
     return interaction.reply({ content: 'Formulir ini hanya dapat dikirim oleh pemilik ticket.', ephemeral: true });
   }
   if (ticket.state !== 'awaiting_form') {
@@ -595,23 +543,80 @@ async function handleModalSubmit(interaction) {
     return interaction.reply({ content: 'Isi pesan testimoni dan pilih rating 1–5 yang valid.', ephemeral: true });
   }
 
+  let actualUserId = ticket.userId;
+  if (isStaff) {
+    const usernameInput = interaction.fields.getTextInputValue('testimonial_username')?.trim();
+    if (usernameInput) {
+      try {
+        let user = null;
+        if (usernameInput.match(/^\d{17,20}$/)) {
+          user = await client.users.fetch(usernameInput).catch(() => null);
+        } else {
+          const guild = await client.guilds.fetch(interaction.guildId);
+          const member = await guild.members.fetch(usernameInput).catch(() => null);
+          if (member) {
+            user = member.user;
+          }
+        }
+        if (user) {
+          actualUserId = user.id;
+        } else {
+          return interaction.reply({ content: 'User tidak ditemukan. Pastikan username benar atau gunakan User ID (angka 17-20 digit).', ephemeral: true });
+        }
+      } catch (error) {
+        return interaction.reply({ content: 'Gagal mencari user. Pastikan format username benar (contoh: @username atau User ID).', ephemeral: true });
+      }
+    }
+  }
+
   ticket.reviewText = reviewText;
   ticket.rating = rating;
-  ticket.state = 'awaiting_evidence';
-  ticket.deadline = Date.now() + EVIDENCE_TIMEOUT_MS;
+  ticket.actualUserId = actualUserId;
+  ticket.state = 'awaiting_staff_review';
+  ticket.deadline = null;
   ticket.formSubmittedAt = Date.now();
   store.saveTicket(ticket);
-  scheduleTicketTimeout(ticket);
+
+  try {
+    await interaction.channel.permissionOverwrites.edit(ticket.userId, {
+      SendMessages: false,
+      AttachFiles: false,
+    }, 'Formulir testimoni diterima; mengunci ticket sambil menunggu review staff.');
+  } catch (permissionError) {
+    console.error(`Gagal mengunci ticket ${ticket.number}:`, permissionError.message);
+  }
 
   await interaction.deferReply({ ephemeral: true });
+  const user = await client.users.fetch(actualUserId).catch(() => interaction.user);
+  const reviewMessage = await interaction.channel.send({
+    embeds: [embeds.staffReviewEmbed(ticket, user)],
+    components: embeds.staffReviewComponents(ticket.channelId),
+    allowedMentions: { parse: [] },
+  });
+  ticket.reviewMessageId = reviewMessage.id;
+  store.saveTicket(ticket);
+
   const mainMessage = await fetchTicketMainMessage(ticket);
   if (mainMessage) {
     await mainMessage.edit({
-      embeds: [embeds.evidenceInstructionEmbed(ticket)],
+      embeds: [new EmbedBuilder()
+        .setColor(embeds.ORANGE)
+        .setTitle(`🔐 Ticket #${ticket.number} • Menunggu Review Staff`)
+        .setDescription([
+          'Formulir testimoni telah diterima. Terima kasih!',
+          '',
+          '🔒 Chat ticket sekarang dikunci agar data tidak berubah selama staff memeriksa testimoni.',
+          'Staff akan memilih **ACCEPT** atau **REJECT** pada panel review di bawah.',
+        ].join('\n'))
+        .addFields(
+          { name: '⭐ Rating', value: `${'⭐'.repeat(ticket.rating)} (${ticket.rating}/5)`, inline: true },
+        )
+        .setFooter({ text: `Ticket #${ticket.number} • Status: menunggu staff` })
+        .setTimestamp()],
       components: [closeOnlyRow(ticket.channelId)],
     });
   }
-  await interaction.editReply('✅ Formulir tersimpan. Sekarang upload bukti transfer langsung di channel ticket dalam waktu 15 menit.');
+  await interaction.editReply('✅ Formulir tersimpan. Staff akan memeriksa testimoni kamu.');
 }
 
 async function handleStaffDecision(interaction, decision) {
@@ -632,7 +637,6 @@ async function handleStaffDecision(interaction, decision) {
 
     let publicMessage;
     let publicChannel;
-    let fallbackLinks = [];
     try {
       await interaction.deferReply({ ephemeral: true });
       publicChannel = await client.channels.fetch(config.publicChannelId).catch(() => null);
@@ -643,13 +647,10 @@ async function handleStaffDecision(interaction, decision) {
         throw new Error('Channel testimoni publik berada di server yang berbeda dengan ticket.');
       }
 
-      const buyer = await client.users.fetch(ticket.userId);
-      const { files, copiedNames, fallbackLinks: linksNeedingFallback } = await prepareEvidenceFiles(ticket.evidence || [], config.uploadCopyLimitBytes);
-      fallbackLinks = linksNeedingFallback;
-      const publicEmbed = embeds.publicTestimonialEmbed(ticket, buyer, copiedNames, fallbackLinks, config.openTicketChannelId);
+      const buyer = await client.users.fetch(ticket.actualUserId || ticket.userId);
+      const publicEmbed = embeds.publicTestimonialEmbed(ticket, buyer, config.openTicketChannelId);
       publicMessage = await publicChannel.send({
         embeds: [publicEmbed],
-        files,
         allowedMentions: { parse: [] },
       });
     } catch (error) {
@@ -657,7 +658,7 @@ async function handleStaffDecision(interaction, decision) {
       ticket.state = 'awaiting_staff_review';
       ticket.deadline = null;
       store.saveTicket(ticket);
-      const buyer = await client.users.fetch(ticket.userId).catch(() => ({ id: ticket.userId, username: 'Pembeli', tag: 'Pembeli' }));
+      const buyer = await client.users.fetch(ticket.actualUserId || ticket.userId).catch(() => ({ id: ticket.actualUserId || ticket.userId, username: 'Pembeli', tag: 'Pembeli' }));
       await safelyEditReviewMessage(ticket, embeds.staffReviewEmbed(ticket, buyer), false);
       if (interaction.deferred || interaction.replied) {
         await interaction.editReply(`❌ Testimoni belum dipublikasikan. Periksa izin bot dan channel testimoni-order. Detail: ${String(error.message).slice(0, 500)}`).catch(() => null);
@@ -673,15 +674,6 @@ async function handleStaffDecision(interaction, decision) {
     ticket.deadline = Date.now() + ACCEPTED_TIMEOUT_MS;
     store.saveTicket(ticket);
     scheduleTicketTimeout(ticket);
-
-    if (fallbackLinks.length && publicChannel) {
-      const proofLinkMessages = buildFallbackProofMessages(ticket, fallbackLinks);
-      for (const content of proofLinkMessages) {
-        await publicChannel.send({ content, allowedMentions: { parse: [] } }).catch((error) => {
-          console.error(`Gagal mengirim tautan bukti tambahan ticket #${ticket.number}:`, error.message);
-        });
-      }
-    }
 
     await safelyEditReviewMessage(ticket, embeds.acceptedReviewEmbed(ticket, interaction.user), true);
     const channel = await client.channels.fetch(ticket.channelId).catch(() => null);
@@ -726,57 +718,6 @@ async function handleStaffDecision(interaction, decision) {
   await interaction.editReply(`❌ Testimoni #${ticket.number} ditolak. Ticket akan ditutup otomatis dalam 15 menit.`);
 }
 
-function buildFallbackProofMessages(ticket, evidence) {
-  const prefix = `🧾 **Bukti pembayaran tambahan — Testimoni #${ticket.number}**\n`;
-  const chunks = [];
-  let current = prefix;
-  evidence.forEach((file, index) => {
-    const line = `• **${String(file.name || `Lampiran ${index + 1}`).replace(/[\`*_{}\[\]()#+\-.!|>]/g, '').slice(0, 100)}**: <${file.url}>\n`;
-    if (current.length + line.length > 1750 && current !== prefix) {
-      chunks.push(current.trimEnd());
-      current = prefix;
-    }
-    current += line;
-  });
-  if (current !== prefix) chunks.push(current.trimEnd());
-  return chunks;
-}
-
-async function prepareEvidenceFiles(evidence, maxCopyBytes) {
-  const files = [];
-  const copiedNames = [];
-  const fallbackLinks = [];
-  let copiedBytes = 0;
-  const maxFileBytes = Math.max(0, maxCopyBytes);
-
-  for (const item of evidence) {
-    const itemSize = Number(item.size) || 0;
-    if (maxFileBytes === 0 || itemSize > maxFileBytes || copiedBytes + itemSize > maxFileBytes) {
-      fallbackLinks.push(item);
-      continue;
-    }
-
-    try {
-      const response = await fetch(item.url, { signal: AbortSignal.timeout(15000) });
-      if (!response.ok) throw new Error(`Download lampiran gagal (${response.status})`);
-      const buffer = Buffer.from(await response.arrayBuffer());
-      if (copiedBytes + buffer.length > maxFileBytes) {
-        fallbackLinks.push(item);
-        continue;
-      }
-      const name = path.basename(item.name || 'bukti-transfer').replace(/[\\/]/g, '_').slice(0, 180) || 'bukti-transfer';
-      files.push({ attachment: buffer, name });
-      copiedNames.push(name);
-      copiedBytes += buffer.length;
-    } catch (error) {
-      console.warn(`Tidak dapat menyalin bukti ${item.name}: ${error.message}`);
-      fallbackLinks.push(item);
-    }
-  }
-
-  return { files, copiedNames, fallbackLinks };
-}
-
 async function beginClosing(ticket, reason) {
   const latest = store.getTicket(ticket.channelId);
   if (!latest) return;
@@ -796,11 +737,11 @@ async function beginClosing(ticket, reason) {
 
 function scheduleTicketTimeout(ticket) {
   clearTicketTimer(ticket.channelId);
-  if (!['awaiting_evidence', 'rejected', 'accepted', 'closing'].includes(ticket.state) || !ticket.deadline) return;
+  if (!['rejected', 'accepted', 'closing'].includes(ticket.state) || !ticket.deadline) return;
 
   const delay = Math.max(0, ticket.deadline - Date.now());
   const timer = setTimeout(() => handleTicketDeadline(ticket.channelId).catch((error) => {
-    console.error(`Timer ticket ${ticket.number} error:`, error);
+    console.error(`Error handling ticket deadline for ${ticket.channelId}:`, error);
   }), delay);
   if (typeof timer.unref === 'function') timer.unref();
   ticketTimers.set(ticket.channelId, timer);
@@ -811,19 +752,6 @@ async function handleTicketDeadline(channelId) {
   const ticket = store.getTicket(channelId);
   if (!ticket || !ticket.deadline) return;
   if (ticket.deadline > Date.now()) {
-    scheduleTicketTimeout(ticket);
-    return;
-  }
-
-  if (ticket.state === 'awaiting_evidence') {
-    const channel = await client.channels.fetch(channelId).catch(() => null);
-    if (channel?.isTextBased() && channel.send) {
-      await channel.send({ embeds: [embeds.evidenceTimeoutEmbed(ticket)] }).catch(() => null);
-    }
-    ticket.state = 'closing';
-    ticket.deadline = Date.now() + CLOSE_GRACE_MS;
-    ticket.closeReason = 'Ticket ditutup otomatis karena bukti transfer tidak diunggah selama 15 menit.';
-    store.saveTicket(ticket);
     scheduleTicketTimeout(ticket);
     return;
   }
@@ -873,7 +801,7 @@ async function restoreTicketTimers() {
       continue;
     }
 
-    if (['awaiting_evidence', 'rejected', 'accepted', 'closing'].includes(ticket.state) && ticket.deadline) {
+    if (['rejected', 'accepted', 'closing'].includes(ticket.state) && ticket.deadline) {
       scheduleTicketTimeout(ticket);
     } else if (ticket.state === 'processing_accept') {
       // Jika proses bot mati setelah state dikunci, kembalikan agar staff bisa mencoba lagi.
@@ -888,7 +816,7 @@ async function restoreTicketTimers() {
         reviewMessage = await channel.messages.fetch(ticket.reviewMessageId).catch(() => null);
       }
       if (!reviewMessage && channel.isTextBased() && channel.send) {
-        const user = await client.users.fetch(ticket.userId).catch(() => ({ id: ticket.userId, username: 'Pembeli', tag: 'Pembeli' }));
+        const user = await client.users.fetch(ticket.actualUserId || ticket.userId).catch(() => ({ id: ticket.actualUserId || ticket.userId, username: 'Pembeli', tag: 'Pembeli' }));
         const restoredMessage = await channel.send({
           embeds: [embeds.staffReviewEmbed(ticket, user)],
           components: embeds.staffReviewComponents(ticket.channelId),
