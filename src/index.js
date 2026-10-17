@@ -331,13 +331,16 @@ async function handleButton(interaction) {
     const ticket = getValidatedTicket(interaction, channelId);
     if (!ticket) return interaction.reply({ content: 'Ticket tidak ditemukan atau tombol ini tidak berlaku di channel ini.', ephemeral: true });
     const isStaff = hasStaffRole(interaction, config.staffRoleId);
+    console.log(`[ticket_send] User: ${interaction.user.tag}, isStaff: ${isStaff}`);
     if (!isStaff && interaction.user.id !== ticket.userId) {
       return interaction.reply({ content: 'Hanya pemilik ticket yang dapat mengisi formulir testimoni.', ephemeral: true });
     }
     if (ticket.state !== 'awaiting_form') {
       return interaction.reply({ content: 'Formulir sudah dikirim atau ticket sedang diproses. Kamu tidak perlu mengirim ulang.', ephemeral: true });
     }
-    return interaction.showModal(buildTestimonialModal(ticket.channelId, isStaff));
+    const modal = buildTestimonialModal(ticket.channelId, isStaff);
+    console.log(`[ticket_send] Modal built with isStaff: ${isStaff}`);
+    return interaction.showModal(modal);
   }
 
   if (interaction.customId.startsWith('ticket_close:')) {
