@@ -48,6 +48,7 @@ const client = new Client({
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
+    GatewayIntentBits.GuildMembers,
   ],
 });
 
@@ -150,6 +151,49 @@ client.on(Events.InteractionCreate, async (interaction) => {
     } catch (replyError) {
       console.error('Gagal mengirim pesan error ke Discord:', replyError.message);
     }
+  }
+});
+
+client.on(Events.GuildMemberAdd, async (member) => {
+  try {
+    if (member.guildId !== config.guildId) return;
+    if (!config.staffRoleId) return;
+
+    const staffRole = await member.guild.roles.fetch(config.staffRoleId).catch(() => null);
+    if (!staffRole) return;
+
+    const staffMembers = await member.guild.members.fetch({ force: true }).then(members => 
+      members.filter(m => m.roles.cache.has(config.staffRoleId))
+    );
+
+    const joinEmbed = new EmbedBuilder()
+      .setColor(0x00ff00)
+      .setTitle('👋 Member Baru Bergabung')
+      .setDescription([
+        `Member baru telah bergabung ke server!`,
+        '',
+        `**User:** ${member.user.tag}`,
+        `**ID:** \`${member.user.id}\``,
+        `**Joined:** ${member.joinedAt ? `<t:${Math.floor(member.joinedAt.getTime() / 1000)}:R>` : 'N/A'}`,
+        `**Account Created:** ${member.user.createdAt ? `<t:${Math.floor(member.user.createdAt.getTime() / 1000)}:R>` : 'N/A'}`,
+      ].join('\n'))
+      .setThumbnail(member.user.displayAvatarURL({ size: 256 }))
+      .setFooter({ text: `Server: ${member.guild.name}` })
+      .setTimestamp();
+
+    let notifiedCount = 0;
+    for (const staff of staffMembers.values()) {
+      try {
+        await staff.send({ embeds: [joinEmbed] }).catch(() => null);
+        notifiedCount++;
+      } catch (error) {
+        console.warn(`Gagal mengirim DM ke ${staff.user.tag}: ${error.message}`);
+      }
+    }
+
+    console.log(`✅ Notifikasi member baru dikirim ke ${notifiedCount}/${staffMembers.size} staff. Member: ${member.user.tag}`);
+  } catch (error) {
+    console.error('GuildMemberAdd error:', error);
   }
 });
 
