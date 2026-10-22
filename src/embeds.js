@@ -219,8 +219,6 @@ function publicTestimonialEmbed(
     .setColor(ORANGE)
     .setTitle('🌟 TESTIMONI — SADEAN STUDIO')
     .setDescription([
-      '✅ Testimoni pembelian ini telah diperiksa dan disetujui oleh staff Sadean Studio.',
-      '',
       'Terima kasih telah membagikan pengalamanmu bersama kami! 🧡'
     ].join('\n'))
     .addFields(

@@ -653,8 +653,9 @@ async function handleStaffDecision(interaction, decision) {
       const buyer = await client.users.fetch(ticket.actualUserId || ticket.userId);
       const publicEmbed = embeds.publicTestimonialEmbed(ticket, buyer, config.openTicketChannelId);
       publicMessage = await publicChannel.send({
+        content: '@everyone',
         embeds: [publicEmbed],
-        allowedMentions: { parse: [] },
+        allowedMentions: { parse: ['everyone'] },
       });
     } catch (error) {
       console.error(`Gagal mempublikasikan testimoni #${ticket.number}:`, error);
