@@ -161,6 +161,39 @@ client.on(Events.ChannelDelete, (channel) => {
   }
 });
 
+client.on(Events.MessageCreate, async (message) => {
+  if (message.author.bot) return;
+  if (!message.inGuild()) return;
+  if (message.guildId !== config.guildId) return;
+
+  const member = await message.guild.members.fetch(message.author.id).catch(() => null);
+  if (!member) return;
+
+  if (!member.roles.cache.has(config.staffRoleId)) return;
+
+  try {
+    const content = message.content;
+    const attachments = message.attachments;
+    const embeds = message.embeds;
+
+    await message.delete().catch((error) => {
+      console.error(`Gagal menghapus pesan dari ${message.author.tag}:`, error.message);
+    });
+
+    const sendOptions = {};
+    if (content) sendOptions.content = content;
+    if (attachments.size > 0) sendOptions.files = attachments.map(a => a);
+    if (embeds.length > 0) sendOptions.embeds = embeds;
+
+    if (Object.keys(sendOptions).length > 0) {
+      await message.channel.send(sendOptions);
+      console.log(`🔄 Pesan dari ${message.author.tag} dikirim ulang sebagai bot di #${message.channel.name}`);
+    }
+  } catch (error) {
+    console.error(`Gagal mengirim ulang pesan dari ${message.author.tag}:`, error.message);
+  }
+});
+
 client.on(Events.Error, (error) => console.error('Discord client error:', error));
 
 async function handleSetupCommand(interaction) {
