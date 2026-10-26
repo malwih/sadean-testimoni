@@ -1255,10 +1255,21 @@ async function postShowcaseToForum(interaction, showcase) {
       appliedTags: [],
     });
 
-    // Add images to the forum post
+    // Add images to the forum post as attachments
     if (imageAttachments.length > 0) {
-      const imageUrls = imageAttachments.map(img => img.url).join('\n');
-      await forumPost.send(imageUrls);
+      for (const attachment of imageAttachments) {
+        try {
+          await forumPost.send({
+            files: [{
+              attachment: attachment.url,
+              name: attachment.name,
+              description: attachment.description || '',
+            }],
+          });
+        } catch (err) {
+          console.error(`Gagal mengirim gambar ${attachment.name}:`, err.message);
+        }
+      }
     }
 
     showcase.state = 'completed';
