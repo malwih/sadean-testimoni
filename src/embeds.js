@@ -4,6 +4,9 @@ const {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
+  ModalBuilder,
+  TextInputBuilder,
+  TextInputStyle,
 } = require('discord.js');
 
 const ORANGE = 0xF97316;
@@ -305,6 +308,237 @@ function formatBytes(bytes) {
 }
 
 
+// SHOWCASE EMBEDS
+function showcasePanelEmbed() {
+  return new EmbedBuilder()
+    .setColor(BLUE)
+    .setTitle('🎮 SADEAN STUDIO • SHOWCASE MAP ROBLOX')
+    .setDescription([
+      'P produk map Roblox kamu di sini! ✨',
+      '',
+      'Bagikan deskripsi produk map Roblox kamu ke forum showcase agar calon pembeli bisa melihat detail produk.',
+      '',
+      '📝 **Cara mengirim showcase**',
+      '› Tekan tombol **Send Showcase** di bawah.',
+      '› Masukkan judul produk.',
+      '› Tulis deskripsi produk di ticket.',
+      '› Upload gambar produk (maksimal 10 gambar).',
+      '› Showcase akan otomatis diposting ke forum.'
+    ].join('\n'))
+    .setFooter({
+      text: `${BRAND} • Showcase produk map Roblox`
+    })
+    .setTimestamp();
+}
+
+function showcasePanelComponents() {
+  return [
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId('showcase_panel_open')
+        .setLabel('Send Showcase')
+        .setEmoji('🎮')
+        .setStyle(ButtonStyle.Primary),
+    ),
+  ];
+}
+
+function showcaseTicketWelcomeEmbed(showcase, user) {
+  return new EmbedBuilder()
+    .setColor(BLUE)
+    .setTitle(`🎟️ Ticket Showcase #${showcase.number}`)
+    .setDescription([
+      `Halo <@${user.id}>! Selamat datang di ticket showcase kamu. 🎮`,
+      '',
+      'Tekan **Submit Title** untuk memulai. Masukkan judul produk map Roblox kamu.',
+      '',
+      '📌 **Alur ticket**',
+      '1. Masukkan judul produk.',
+      '2. Tulis deskripsi lengkap produk.',
+      '3. Upload gambar produk (maksimal 10 gambar).',
+      '4. Showcase akan otomatis diposting ke forum.',
+      '',
+      '🔐 Ticket ini hanya bisa dilihat oleh kamu, staff, dan bot.'
+    ].join('\n'))
+    .addFields(
+      {
+        name: '👤 Pemilik',
+        value: `<@${user.id}>`,
+        inline: true
+      },
+      {
+        name: '📍 Status',
+        value: 'Menunggu judul',
+        inline: true
+      },
+    )
+    .setFooter({
+      text: `${BRAND} • Ticket privat`
+    })
+    .setTimestamp();
+}
+
+function showcaseTicketActionRow(channelId, options = {}) {
+  const {
+    titleDisabled = false,
+    descriptionDisabled = true,
+    imagesDisabled = true,
+    closeDisabled = false
+  } = options;
+
+  return new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`showcase_close:${channelId}`)
+      .setLabel('Close Ticket')
+      .setEmoji('🔒')
+      .setStyle(ButtonStyle.Danger)
+      .setDisabled(closeDisabled),
+
+    new ButtonBuilder()
+      .setCustomId(`showcase_title:${channelId}`)
+      .setLabel('Submit Title')
+      .setEmoji('📝')
+      .setStyle(ButtonStyle.Primary)
+      .setDisabled(titleDisabled),
+
+    new ButtonBuilder()
+      .setCustomId(`showcase_description:${channelId}`)
+      .setLabel('Submit Description')
+      .setEmoji('📄')
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(descriptionDisabled),
+
+    new ButtonBuilder()
+      .setCustomId(`showcase_images:${channelId}`)
+      .setLabel('Submit Images')
+      .setEmoji('🖼️')
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(imagesDisabled),
+  );
+}
+
+function showcaseTitleModal(channelId) {
+  const titleInput = new TextInputBuilder()
+    .setCustomId('showcase_title_input')
+    .setStyle(TextInputStyle.Short)
+    .setPlaceholder('Masukkan judul produk map Roblox...')
+    .setMinLength(3)
+    .setMaxLength(100)
+    .setRequired(true);
+
+  return new ModalBuilder()
+    .setCustomId(`showcase_title_modal:${channelId}`)
+    .setTitle('📝 Judul Produk')
+    .addComponents(
+      new ActionRowBuilder().addComponents(titleInput)
+    );
+}
+
+function showcaseDescriptionModal(channelId) {
+  const descInput = new TextInputBuilder()
+    .setCustomId('showcase_description_input')
+    .setStyle(TextInputStyle.Paragraph)
+    .setPlaceholder('Tulis deskripsi lengkap produk map Roblox kamu...')
+    .setMinLength(10)
+    .setMaxLength(2000)
+    .setRequired(true);
+
+  return new ModalBuilder()
+    .setCustomId(`showcase_description_modal:${channelId}`)
+    .setTitle('📄 Deskripsi Produk')
+    .addComponents(
+      new ActionRowBuilder().addComponents(descInput)
+    );
+}
+
+function showcaseForumPostEmbed(showcase, user) {
+  const displayName = user.globalName || user.username;
+  const description = truncate(
+    String(showcase.description || '—')
+      .replace(/\s+/g, ' ')
+      .replace(/`/g, 'ˋ'),
+    1900
+  );
+
+  return new EmbedBuilder()
+    .setColor(BLUE)
+    .setTitle(showcase.title || 'Showcase Produk')
+    .setDescription(description)
+    .setAuthor({
+      name: displayName,
+      iconURL: user.displayAvatarURL({ size: 128 }),
+    })
+    .setThumbnail(user.displayAvatarURL({ size: 256 }))
+    .setFooter({
+      text: `Showcase #${showcase.number} • ${BRAND}`
+    })
+    .setTimestamp();
+}
+
+function showcaseSubmittedEmbed(showcase) {
+  return new EmbedBuilder()
+    .setColor(GREEN)
+    .setTitle('✅ Showcase Berhasil Dikirim!')
+    .setDescription([
+      `Showcase untuk ticket **#${showcase.number}** telah berhasil diposting ke forum.`,
+      '',
+      'Terima kasih sudah membagikan produk map Roblox kamu! 🎮'
+    ].join('\n'))
+    .setFooter({
+      text: `${BRAND} • Showcase selesai`
+    })
+    .setTimestamp();
+}
+
+function showcaseWaitingTitleEmbed(showcase) {
+  return new EmbedBuilder()
+    .setColor(BLUE)
+    .setTitle(`🎟️ Ticket Showcase #${showcase.number} • Menunggu Judul`)
+    .setDescription([
+      'Tekan tombol **Submit Title** untuk memasukkan judul produk map Roblox kamu.',
+      '',
+      'Judul akan menjadi judul postingan di forum showcase.'
+    ].join('\n'))
+    .setFooter({
+      text: `${BRAND} • Ticket privat`
+    })
+    .setTimestamp();
+}
+
+function showcaseWaitingDescriptionEmbed(showcase) {
+  return new EmbedBuilder()
+    .setColor(BLUE)
+    .setTitle(`🎟️ Ticket Showcase #${showcase.number} • Menunggu Deskripsi`)
+    .setDescription([
+      `Judul: **${showcase.title}**`,
+      '',
+      'Tekan tombol **Submit Description** untuk menulis deskripsi lengkap produk.',
+      '',
+      'Deskripsi akan menjadi isi postingan di forum showcase.'
+    ].join('\n'))
+    .setFooter({
+      text: `${BRAND} • Ticket privat`
+    })
+    .setTimestamp();
+}
+
+function showcaseWaitingImagesEmbed(showcase) {
+  return new EmbedBuilder()
+    .setColor(BLUE)
+    .setTitle(`🎟️ Ticket Showcase #${showcase.number} • Menunggu Gambar`)
+    .setDescription([
+      `Judul: **${showcase.title}**`,
+      `Deskripsi: ${truncate(showcase.description, 50)}...`,
+      '',
+      'Upload gambar produk di channel ini (maksimal 10 gambar).',
+      'Setelah selesai, tekan tombol **Submit Images** untuk memposting showcase ke forum.'
+    ].join('\n'))
+    .setFooter({
+      text: `${BRAND} • Ticket privat`
+    })
+    .setTimestamp();
+}
+
 module.exports = {
   ORANGE,
   panelEmbed,
@@ -319,4 +553,15 @@ module.exports = {
   publicTestimonialEmbed,
   acceptedReviewEmbed,
   rejectedReviewEmbed,
+  showcasePanelEmbed,
+  showcasePanelComponents,
+  showcaseTicketWelcomeEmbed,
+  showcaseTicketActionRow,
+  showcaseTitleModal,
+  showcaseDescriptionModal,
+  showcaseForumPostEmbed,
+  showcaseSubmittedEmbed,
+  showcaseWaitingTitleEmbed,
+  showcaseWaitingDescriptionEmbed,
+  showcaseWaitingImagesEmbed,
 };

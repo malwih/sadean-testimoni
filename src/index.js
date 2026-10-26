@@ -41,6 +41,10 @@ const config = {
   testimoniRoleId: process.env.TESTIMONI_ROLE_ID?.trim() || null,
   openTicketChannelId: process.env.OPEN_TICKET_CHANNEL_ID?.trim() || null,
   ticketCategoryId: process.env.TICKET_CATEGORY_ID?.trim() || null,
+  showcaseChannelId: process.env.SEND_SHOWCASE_CHANNEL_ID?.trim() || null,
+  showcaseForumChannelId: process.env.SHOWCASE_FORUM_CHANNEL_ID?.trim() || null,
+  showcaseTicketCategoryId: process.env.SHOWCASE_TICKET_CATEGORY_ID?.trim() || null,
+  showcaseRoleId: process.env.SHOWCASE_ROLE_ID?.trim() || null,
 };
 
 const client = new Client({
@@ -79,13 +83,18 @@ const untestimoniCommand = new SlashCommandBuilder()
       .setRequired(true))
   .setDefaultMemberPermissions(PermissionFlagsBits.Administrator);
 
+const setupShowcaseCommand = new SlashCommandBuilder()
+  .setName('setup-showcase')
+  .setDescription('Pasang panel Send Showcase di channel yang dikonfigurasi.')
+  .setDefaultMemberPermissions(PermissionFlagsBits.Administrator);
+
 client.once(Events.ClientReady, async (readyClient) => {
   console.log(`✅ Login sebagai ${readyClient.user.tag}`);
 
   try {
     const rest = new REST({ version: '10' }).setToken(config.token);
     await rest.put(Routes.applicationGuildCommands(config.clientId, config.guildId), {
-      body: [setupCommand.toJSON(), testimoniCommand.toJSON(), untestimoniCommand.toJSON()],
+      body: [setupCommand.toJSON(), testimoniCommand.toJSON(), untestimoniCommand.toJSON(), setupShowcaseCommand.toJSON()],
     });
     console.log('✅ Slash command berhasil didaftarkan.');
   } catch (error) {
@@ -104,6 +113,19 @@ client.once(Events.ClientReady, async (readyClient) => {
         console.log(`✅ Panel testimoni otomatis dipasang di <#${panelChannel.id}>. [Lihat panel](${panelMessage.url})`);
       } else {
         console.warn('⚠️ Channel SEND_TESTIMONI_CHANNEL_ID tidak ditemukan atau bukan channel teks. Panel tidak dipasang otomatis.');
+      }
+
+      if (config.showcaseChannelId) {
+        const showcasePanelChannel = await guild.channels.fetch(config.showcaseChannelId).catch(() => null);
+        if (showcasePanelChannel && showcasePanelChannel.isTextBased() && showcasePanelChannel.send) {
+          const showcasePanelMessage = await showcasePanelChannel.send({
+            embeds: [embeds.showcasePanelEmbed()],
+            components: embeds.showcasePanelComponents(),
+          });
+          console.log(`✅ Panel showcase otomatis dipasang di <#${showcasePanelChannel.id}>. [Lihat panel](${showcasePanelMessage.url})`);
+        } else {
+          console.warn('⚠️ Channel SEND_SHOWCASE_CHANNEL_ID tidak ditemukan atau bukan channel teks. Panel showcase tidak dipasang otomatis.');
+        }
       }
     }
   } catch (error) {
@@ -124,6 +146,9 @@ client.on(Events.InteractionCreate, async (interaction) => {
       }
       if (interaction.commandName === 'untesti') {
         await handleUntestimoniCommand(interaction);
+      }
+      if (interaction.commandName === 'setup-showcase') {
+        await handleSetupShowcaseCommand(interaction);
       }
       return;
     }
@@ -158,6 +183,10 @@ client.on(Events.ChannelDelete, (channel) => {
   if (store.getTicket(channel.id)) {
     store.removeTicket(channel.id);
     console.log(`🗑️ Data ticket untuk channel ${channel.id} dihapus karena channel dihapus.`);
+  }
+  if (store.getShowcase(channel.id)) {
+    store.removeShowcase(channel.id);
+    console.log(`🗑️ Data showcase untuk channel ${channel.id} dihapus karena channel dihapus.`);
   }
 });
 
@@ -311,6 +340,30 @@ async function handleUntestimoniCommand(interaction) {
   }
 }
 
+async function handleSetupShowcaseCommand(interaction) {
+  if (!interaction.inGuild() || interaction.guildId !== config.guildId) {
+    return interaction.reply({ content: 'Command ini hanya dapat dipakai di server yang dikonfigurasi pada `.env`.', ephemeral: true });
+  }
+  if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) {
+    return interaction.reply({ content: 'Hanya administrator server yang boleh memasang panel ini.', ephemeral: true });
+  }
+  if (!config.showcaseChannelId) {
+    return interaction.reply({ content: 'SEND_SHOWCASE_CHANNEL_ID belum dikonfigurasi di `.env`.', ephemeral: true });
+  }
+
+  await interaction.deferReply({ ephemeral: true });
+  const panelChannel = await interaction.guild.channels.fetch(config.showcaseChannelId).catch(() => null);
+  if (!panelChannel || !panelChannel.isTextBased() || !panelChannel.send) {
+    return interaction.editReply('Channel SEND_SHOWCASE_CHANNEL_ID tidak ditemukan atau bukan channel teks. Periksa `.env`.');
+  }
+
+  const panelMessage = await panelChannel.send({
+    embeds: [embeds.showcasePanelEmbed()],
+    components: embeds.showcasePanelComponents(),
+  });
+  return interaction.editReply(`✅ Panel showcase berhasil dipasang di <#${panelChannel.id}>. [Lihat panel](${panelMessage.url})`);
+}
+
 async function handleButton(interaction) {
   if (interaction.customId === 'testimonial_panel_open') {
     if (!config.testimoniRoleId) {
@@ -318,12 +371,22 @@ async function handleButton(interaction) {
     }
     if (!interaction.member.roles.cache.has(config.testimoniRoleId)) {
       const channelMention = config.openTicketChannelId ? `<#${config.openTicketChannelId}>` : 'channel open-ticket';
-      return interaction.reply({ 
-        content: `❌ Kamu belum memiliki transaksi baru. Silakan lakukan pembelian/transaksi terlebih dahulu di ${channelMention} untuk mendapatkan akses send testimoni.`, 
-        ephemeral: true 
+      return interaction.reply({
+        content: `❌ Kamu belum memiliki transaksi baru. Silakan lakukan pembelian/transaksi terlebih dahulu di ${channelMention} untuk mendapatkan akses send testimoni.`,
+        ephemeral: true
       });
     }
     return createTicket(interaction);
+  }
+
+  if (interaction.customId === 'showcase_panel_open') {
+    if (!config.showcaseRoleId) {
+      return interaction.reply({ content: 'Role showcase belum dikonfigurasi.', ephemeral: true });
+    }
+    if (!interaction.member.roles.cache.has(config.showcaseRoleId)) {
+      return interaction.reply({ content: '❌ Kamu belum memiliki role showcase. Hubungi admin untuk mendapatkan akses.', ephemeral: true });
+    }
+    return createShowcaseTicket(interaction);
   }
 
   if (interaction.customId.startsWith('ticket_send:')) {
@@ -359,6 +422,61 @@ async function handleButton(interaction) {
   }
   if (interaction.customId.startsWith('testimonial_reject:')) {
     return handleStaffDecision(interaction, 'reject');
+  }
+
+  // Showcase button handlers
+  if (interaction.customId.startsWith('showcase_title:')) {
+    const channelId = interaction.customId.split(':')[1];
+    const showcase = getValidatedShowcase(interaction, channelId);
+    if (!showcase) return interaction.reply({ content: 'Showcase ticket tidak ditemukan atau tombol ini tidak berlaku di channel ini.', ephemeral: true });
+    if (interaction.user.id !== showcase.userId) {
+      return interaction.reply({ content: 'Hanya pemilik ticket yang dapat mengisi formulir showcase.', ephemeral: true });
+    }
+    if (showcase.state !== 'awaiting_title') {
+      return interaction.reply({ content: 'Judul sudah dikirim atau ticket sedang diproses.', ephemeral: true });
+    }
+    const modal = embeds.showcaseTitleModal(channelId);
+    return interaction.showModal(modal);
+  }
+
+  if (interaction.customId.startsWith('showcase_description:')) {
+    const channelId = interaction.customId.split(':')[1];
+    const showcase = getValidatedShowcase(interaction, channelId);
+    if (!showcase) return interaction.reply({ content: 'Showcase ticket tidak ditemukan atau tombol ini tidak berlaku di channel ini.', ephemeral: true });
+    if (interaction.user.id !== showcase.userId) {
+      return interaction.reply({ content: 'Hanya pemilik ticket yang dapat mengisi formulir showcase.', ephemeral: true });
+    }
+    if (showcase.state !== 'awaiting_description') {
+      return interaction.reply({ content: 'Deskripsi sudah dikirim atau ticket sedang diproses.', ephemeral: true });
+    }
+    const modal = embeds.showcaseDescriptionModal(channelId);
+    return interaction.showModal(modal);
+  }
+
+  if (interaction.customId.startsWith('showcase_images:')) {
+    const channelId = interaction.customId.split(':')[1];
+    const showcase = getValidatedShowcase(interaction, channelId);
+    if (!showcase) return interaction.reply({ content: 'Showcase ticket tidak ditemukan atau tombol ini tidak berlaku di channel ini.', ephemeral: true });
+    if (interaction.user.id !== showcase.userId) {
+      return interaction.reply({ content: 'Hanya pemilik ticket yang dapat mengirim showcase.', ephemeral: true });
+    }
+    if (showcase.state !== 'awaiting_images') {
+      return interaction.reply({ content: 'Ticket sedang diproses atau sudah selesai.', ephemeral: true });
+    }
+    await interaction.deferReply({ ephemeral: true });
+    await postShowcaseToForum(interaction, showcase);
+    return;
+  }
+
+  if (interaction.customId.startsWith('showcase_close:')) {
+    const channelId = interaction.customId.split(':')[1];
+    const showcase = getValidatedShowcase(interaction, channelId);
+    if (!showcase) return interaction.reply({ content: 'Ticket ini sudah ditutup atau tidak ditemukan.', ephemeral: true });
+    const allowed = interaction.user.id === showcase.userId || hasStaffRole(interaction, config.staffRoleId);
+    if (!allowed) return interaction.reply({ content: 'Hanya pemilik ticket atau staff yang dapat menutup ticket ini.', ephemeral: true });
+    await interaction.reply({ content: `Ticket Showcase #${showcase.number} akan ditutup dalam beberapa detik.`, ephemeral: true });
+    await beginClosingShowcase(showcase, `Ticket ditutup oleh ${interaction.user.tag || interaction.user.username}.`);
+    return;
   }
 }
 
@@ -525,101 +643,172 @@ function buildTestimonialModal(channelId, isStaff = false) {
 }
 
 async function handleModalSubmit(interaction) {
-  if (!interaction.customId.startsWith('testimonial_modal:')) return;
-  const channelId = interaction.customId.split(':')[1];
-  const ticket = store.getTicket(channelId);
-  if (!ticket || interaction.channelId !== channelId || ticket.guildId !== interaction.guildId) {
-    return interaction.reply({ content: 'Ticket tidak ditemukan atau sudah ditutup.', ephemeral: true });
-  }
-  const isStaff = hasStaffRole(interaction, config.staffRoleId);
-  if (!isStaff && interaction.user.id !== ticket.userId) {
-    return interaction.reply({ content: 'Formulir ini hanya dapat dikirim oleh pemilik ticket.', ephemeral: true });
-  }
-  if (ticket.state !== 'awaiting_form') {
-    return interaction.reply({ content: 'Formulir sudah pernah dikirim. Silakan ikuti instruksi pada ticket.', ephemeral: true });
-  }
+  if (interaction.customId.startsWith('testimonial_modal:')) {
+    const channelId = interaction.customId.split(':')[1];
+    const ticket = store.getTicket(channelId);
+    if (!ticket || interaction.channelId !== channelId || ticket.guildId !== interaction.guildId) {
+      return interaction.reply({ content: 'Ticket tidak ditemukan atau sudah ditutup.', ephemeral: true });
+    }
+    const isStaff = hasStaffRole(interaction, config.staffRoleId);
+    if (!isStaff && interaction.user.id !== ticket.userId) {
+      return interaction.reply({ content: 'Formulir ini hanya dapat dikirim oleh pemilik ticket.', ephemeral: true });
+    }
+    if (ticket.state !== 'awaiting_form') {
+      return interaction.reply({ content: 'Formulir sudah pernah dikirim. Silakan ikuti instruksi pada ticket.', ephemeral: true });
+    }
 
-  const reviewText = interaction.fields.getTextInputValue('testimonial_text').trim();
-  const ratingValues = interaction.fields.getStringSelectValues('testimonial_rating');
-  const rating = Number(ratingValues?.[0]);
-  if (reviewText.length < 5 || !Number.isInteger(rating) || rating < 1 || rating > 5) {
-    return interaction.reply({ content: 'Isi pesan testimoni dan pilih rating 1–5 yang valid.', ephemeral: true });
-  }
+    const reviewText = interaction.fields.getTextInputValue('testimonial_text').trim();
+    const ratingValues = interaction.fields.getStringSelectValues('testimonial_rating');
+    const rating = Number(ratingValues?.[0]);
+    if (reviewText.length < 5 || !Number.isInteger(rating) || rating < 1 || rating > 5) {
+      return interaction.reply({ content: 'Isi pesan testimoni dan pilih rating 1–5 yang valid.', ephemeral: true });
+    }
 
-  let actualUserId = ticket.userId;
-  if (isStaff) {
-    const usernameInput = interaction.fields.getTextInputValue('testimonial_username')?.trim();
-    if (usernameInput) {
-      try {
-        let user = null;
-        if (usernameInput.match(/^\d{17,20}$/)) {
-          user = await client.users.fetch(usernameInput).catch(() => null);
-        } else {
-          const guild = await client.guilds.fetch(interaction.guildId);
-          const member = await guild.members.fetch(usernameInput).catch(() => null);
-          if (member) {
-            user = member.user;
+    let actualUserId = ticket.userId;
+    if (isStaff) {
+      const usernameInput = interaction.fields.getTextInputValue('testimonial_username')?.trim();
+      if (usernameInput) {
+        try {
+          let user = null;
+          if (usernameInput.match(/^\d{17,20}$/)) {
+            user = await client.users.fetch(usernameInput).catch(() => null);
+          } else {
+            const guild = await client.guilds.fetch(interaction.guildId);
+            const member = await guild.members.fetch(usernameInput).catch(() => null);
+            if (member) {
+              user = member.user;
+            }
           }
+          if (user) {
+            actualUserId = user.id;
+          } else {
+            return interaction.reply({ content: 'User tidak ditemukan. Pastikan username benar atau gunakan User ID (angka 17-20 digit).', ephemeral: true });
+          }
+        } catch (error) {
+          return interaction.reply({ content: 'Gagal mencari user. Pastikan format username benar (contoh: @username atau User ID).', ephemeral: true });
         }
-        if (user) {
-          actualUserId = user.id;
-        } else {
-          return interaction.reply({ content: 'User tidak ditemukan. Pastikan username benar atau gunakan User ID (angka 17-20 digit).', ephemeral: true });
-        }
-      } catch (error) {
-        return interaction.reply({ content: 'Gagal mencari user. Pastikan format username benar (contoh: @username atau User ID).', ephemeral: true });
       }
     }
-  }
 
-  ticket.reviewText = reviewText;
-  ticket.rating = rating;
-  ticket.actualUserId = actualUserId;
-  ticket.state = 'awaiting_staff_review';
-  ticket.deadline = null;
-  ticket.formSubmittedAt = Date.now();
-  store.saveTicket(ticket);
+    ticket.reviewText = reviewText;
+    ticket.rating = rating;
+    ticket.actualUserId = actualUserId;
+    ticket.state = 'awaiting_staff_review';
+    ticket.deadline = null;
+    ticket.formSubmittedAt = Date.now();
+    store.saveTicket(ticket);
 
-  try {
-    await interaction.channel.permissionOverwrites.edit(ticket.userId, {
-      SendMessages: false,
-      AttachFiles: false,
-    }, 'Formulir testimoni diterima; mengunci ticket sambil menunggu review staff.');
-  } catch (permissionError) {
-    console.error(`Gagal mengunci ticket ${ticket.number}:`, permissionError.message);
-  }
+    try {
+      await interaction.channel.permissionOverwrites.edit(ticket.userId, {
+        SendMessages: false,
+        AttachFiles: false,
+      }, 'Formulir testimoni diterima; mengunci ticket sambil menunggu review staff.');
+    } catch (permissionError) {
+      console.error(`Gagal mengunci ticket ${ticket.number}:`, permissionError.message);
+    }
 
-  await interaction.deferReply({ ephemeral: true });
-  const user = await client.users.fetch(actualUserId).catch(() => interaction.user);
-  const reviewMessage = await interaction.channel.send({
-    embeds: [embeds.staffReviewEmbed(ticket, user)],
-    components: embeds.staffReviewComponents(ticket.channelId),
-    allowedMentions: { parse: [] },
-  });
-  ticket.reviewMessageId = reviewMessage.id;
-  store.saveTicket(ticket);
-
-  const mainMessage = await fetchTicketMainMessage(ticket);
-  if (mainMessage) {
-    await mainMessage.edit({
-      embeds: [new EmbedBuilder()
-        .setColor(embeds.ORANGE)
-        .setTitle(`🔐 Ticket #${ticket.number} • Menunggu Review Staff`)
-        .setDescription([
-          'Formulir testimoni telah diterima. Terima kasih!',
-          '',
-          '🔒 Chat ticket sekarang dikunci agar data tidak berubah selama staff memeriksa testimoni.',
-          'Staff akan memilih **ACCEPT** atau **REJECT** pada panel review di bawah.',
-        ].join('\n'))
-        .addFields(
-          { name: '⭐ Rating', value: `${'⭐'.repeat(ticket.rating)} (${ticket.rating}/5)`, inline: true },
-        )
-        .setFooter({ text: `Ticket #${ticket.number} • Status: menunggu staff` })
-        .setTimestamp()],
-      components: [closeOnlyRow(ticket.channelId)],
+    await interaction.deferReply({ ephemeral: true });
+    const user = await client.users.fetch(actualUserId).catch(() => interaction.user);
+    const reviewMessage = await interaction.channel.send({
+      embeds: [embeds.staffReviewEmbed(ticket, user)],
+      components: embeds.staffReviewComponents(ticket.channelId),
+      allowedMentions: { parse: [] },
     });
+    ticket.reviewMessageId = reviewMessage.id;
+    store.saveTicket(ticket);
+
+    const mainMessage = await fetchTicketMainMessage(ticket);
+    if (mainMessage) {
+      await mainMessage.edit({
+        embeds: [new EmbedBuilder()
+          .setColor(embeds.ORANGE)
+          .setTitle(`🔐 Ticket #${ticket.number} • Menunggu Review Staff`)
+          .setDescription([
+            'Formulir testimoni telah diterima. Terima kasih!',
+            '',
+            '🔒 Chat ticket sekarang dikunci agar data tidak berubah selama staff memeriksa testimoni.',
+            'Staff akan memilih **ACCEPT** atau **REJECT** pada panel review di bawah.',
+          ].join('\n'))
+          .addFields(
+            { name: '⭐ Rating', value: `${'⭐'.repeat(ticket.rating)} (${ticket.rating}/5)`, inline: true },
+          )
+          .setFooter({ text: `Ticket #${ticket.number} • Status: menunggu staff` })
+          .setTimestamp()],
+        components: [closeOnlyRow(ticket.channelId)],
+      });
+    }
+    await interaction.editReply('✅ Formulir tersimpan. Staff akan memeriksa testimoni kamu.');
+    return;
   }
-  await interaction.editReply('✅ Formulir tersimpan. Staff akan memeriksa testimoni kamu.');
+
+  // Showcase modal handlers
+  if (interaction.customId.startsWith('showcase_title_modal:')) {
+    const channelId = interaction.customId.split(':')[1];
+    const showcase = store.getShowcase(channelId);
+    if (!showcase || interaction.channelId !== channelId || showcase.guildId !== interaction.guildId) {
+      return interaction.reply({ content: 'Showcase ticket tidak ditemukan atau sudah ditutup.', ephemeral: true });
+    }
+    if (interaction.user.id !== showcase.userId) {
+      return interaction.reply({ content: 'Formulir ini hanya dapat dikirim oleh pemilik ticket.', ephemeral: true });
+    }
+    if (showcase.state !== 'awaiting_title') {
+      return interaction.reply({ content: 'Judul sudah pernah dikirim.', ephemeral: true });
+    }
+
+    const title = interaction.fields.getTextInputValue('showcase_title_input').trim();
+    if (title.length < 3 || title.length > 100) {
+      return interaction.reply({ content: 'Judul harus 3-100 karakter.', ephemeral: true });
+    }
+
+    showcase.title = title;
+    showcase.state = 'awaiting_description';
+    store.saveShowcase(showcase);
+
+    await interaction.deferReply({ ephemeral: true });
+    const mainMessage = await fetchShowcaseMainMessage(showcase);
+    if (mainMessage) {
+      await mainMessage.edit({
+        embeds: [embeds.showcaseWaitingDescriptionEmbed(showcase)],
+        components: [embeds.showcaseTicketActionRow(channelId, { titleDisabled: true, descriptionDisabled: false, imagesDisabled: true })],
+      });
+    }
+    await interaction.editReply('✅ Judul tersimpan. Silakan tulis deskripsi produk.');
+    return;
+  }
+
+  if (interaction.customId.startsWith('showcase_description_modal:')) {
+    const channelId = interaction.customId.split(':')[1];
+    const showcase = store.getShowcase(channelId);
+    if (!showcase || interaction.channelId !== channelId || showcase.guildId !== interaction.guildId) {
+      return interaction.reply({ content: 'Showcase ticket tidak ditemukan atau sudah ditutup.', ephemeral: true });
+    }
+    if (interaction.user.id !== showcase.userId) {
+      return interaction.reply({ content: 'Formulir ini hanya dapat dikirim oleh pemilik ticket.', ephemeral: true });
+    }
+    if (showcase.state !== 'awaiting_description') {
+      return interaction.reply({ content: 'Deskripsi sudah pernah dikirim.', ephemeral: true });
+    }
+
+    const description = interaction.fields.getTextInputValue('showcase_description_input').trim();
+    if (description.length < 10 || description.length > 2000) {
+      return interaction.reply({ content: 'Deskripsi harus 10-2000 karakter.', ephemeral: true });
+    }
+
+    showcase.description = description;
+    showcase.state = 'awaiting_images';
+    store.saveShowcase(showcase);
+
+    await interaction.deferReply({ ephemeral: true });
+    const mainMessage = await fetchShowcaseMainMessage(showcase);
+    if (mainMessage) {
+      await mainMessage.edit({
+        embeds: [embeds.showcaseWaitingImagesEmbed(showcase)],
+        components: [embeds.showcaseTicketActionRow(channelId, { titleDisabled: true, descriptionDisabled: true, imagesDisabled: false })],
+      });
+    }
+    await interaction.editReply('✅ Deskripsi tersimpan. Silakan upload gambar produk (maksimal 10 gambar) di channel ini, lalu tekan tombol Submit Images.');
+    return;
+  }
 }
 
 async function handleStaffDecision(interaction, decision) {
@@ -895,6 +1084,228 @@ async function safelyEditReviewMessage(ticket, embed, disabled) {
     embeds: [embed],
     components: embeds.staffReviewComponents(ticket.channelId, disabled),
   }).catch((error) => console.error(`Gagal memperbarui panel review ticket #${ticket.number}:`, error.message));
+}
+
+// Showcase functions
+async function createShowcaseTicket(interaction) {
+  if (!interaction.inGuild() || interaction.guildId !== config.guildId) {
+    return interaction.reply({ content: 'Panel ini tidak dikonfigurasi untuk server ini.', ephemeral: true });
+  }
+
+  await interaction.deferReply({ ephemeral: true });
+
+  const previous = store.findShowcaseByUser(interaction.guildId, interaction.user.id);
+  if (previous) {
+    const previousChannel = await interaction.guild.channels.fetch(previous.channelId).catch(() => null);
+    if (previousChannel) {
+      return interaction.editReply(`Kamu masih memiliki ticket showcase yang aktif: <#${previousChannel.id}>. Selesaikan atau tutup ticket itu terlebih dahulu.`);
+    }
+    store.removeShowcase(previous.channelId);
+  }
+
+  const staffRole = await interaction.guild.roles.fetch(config.staffRoleId).catch(() => null);
+  if (!staffRole) {
+    return interaction.editReply('Role staff pada `STAFF_ROLE_ID` tidak ditemukan. Periksa ID role di `.env`.');
+  }
+
+  let parentId = null;
+  if (config.showcaseTicketCategoryId) {
+    const parent = await interaction.guild.channels.fetch(config.showcaseTicketCategoryId).catch(() => null);
+    if (!parent || parent.type !== ChannelType.GuildCategory) {
+      return interaction.editReply('Kategori ticket showcase pada `SHOWCASE_TICKET_CATEGORY_ID` tidak ditemukan atau bukan kategori. Periksa `.env`, atau kosongkan nilainya.');
+    }
+    parentId = parent.id;
+  }
+
+  const number = store.nextShowcaseNumber();
+  const channelName = `showcase-${number}`;
+  const channel = await interaction.guild.channels.create({
+    name: channelName,
+    type: ChannelType.GuildText,
+    parent: parentId || undefined,
+    topic: `Ticket Showcase #${number} | Owner ID: ${interaction.user.id}`,
+    permissionOverwrites: [
+      { id: interaction.guild.id, deny: [PermissionFlagsBits.ViewChannel] },
+      {
+        id: interaction.user.id,
+        allow: [
+          PermissionFlagsBits.ViewChannel,
+          PermissionFlagsBits.ReadMessageHistory,
+          PermissionFlagsBits.SendMessages,
+          PermissionFlagsBits.AttachFiles,
+          PermissionFlagsBits.EmbedLinks,
+        ],
+      },
+      {
+        id: staffRole.id,
+        allow: [
+          PermissionFlagsBits.ViewChannel,
+          PermissionFlagsBits.ReadMessageHistory,
+          PermissionFlagsBits.SendMessages,
+          PermissionFlagsBits.AttachFiles,
+          PermissionFlagsBits.EmbedLinks,
+        ],
+      },
+      {
+        id: client.user.id,
+        allow: [
+          PermissionFlagsBits.ViewChannel,
+          PermissionFlagsBits.ReadMessageHistory,
+          PermissionFlagsBits.SendMessages,
+          PermissionFlagsBits.ManageChannels,
+          PermissionFlagsBits.ManageMessages,
+          PermissionFlagsBits.AttachFiles,
+          PermissionFlagsBits.EmbedLinks,
+        ],
+      },
+    ],
+    reason: `Ticket showcase #${number} dibuat oleh ${interaction.user.tag || interaction.user.username}`,
+  });
+
+  const showcase = {
+    number,
+    channelId: channel.id,
+    guildId: interaction.guildId,
+    userId: interaction.user.id,
+    state: 'awaiting_title',
+    createdAt: Date.now(),
+    title: null,
+    description: null,
+    images: [],
+    ticketMessageId: null,
+  };
+  store.saveShowcase(showcase);
+
+  try {
+    const message = await channel.send({
+      content: `<@${interaction.user.id}>`,
+      embeds: [embeds.showcaseTicketWelcomeEmbed(showcase, interaction.user)],
+      components: [embeds.showcaseTicketActionRow(channel.id)],
+      allowedMentions: { users: [interaction.user.id] },
+    });
+    showcase.ticketMessageId = message.id;
+    store.saveShowcase(showcase);
+  } catch (error) {
+    store.removeShowcase(channel.id);
+    await channel.delete('Gagal mengirim pesan awal ticket.').catch(() => null);
+    throw error;
+  }
+
+  return interaction.editReply(`✅ Ticket showcase kamu berhasil dibuat: <#${channel.id}>`);
+}
+
+function getValidatedShowcase(interaction, channelId) {
+  const showcase = store.getShowcase(channelId);
+  if (!showcase || interaction.channelId !== channelId || showcase.guildId !== interaction.guildId) return null;
+  return showcase;
+}
+
+async function fetchShowcaseMainMessage(showcase) {
+  if (!showcase.ticketMessageId) return null;
+  const channel = await client.channels.fetch(showcase.channelId).catch(() => null);
+  if (!channel?.isTextBased() || !channel.messages) return null;
+  return channel.messages.fetch(showcase.ticketMessageId).catch(() => null);
+}
+
+async function postShowcaseToForum(interaction, showcase) {
+  if (!config.showcaseForumChannelId) {
+    return interaction.editReply('SHOWCASE_FORUM_CHANNEL_ID belum dikonfigurasi. Hubungi admin.');
+  }
+
+  const forumChannel = await client.channels.fetch(config.showcaseForumChannelId).catch(() => null);
+  if (!forumChannel || forumChannel.type !== ChannelType.GuildForum) {
+    return interaction.editReply('Channel forum showcase tidak ditemukan atau bukan channel forum.');
+  }
+
+  // Collect images from the channel
+  const channel = await client.channels.fetch(showcase.channelId).catch(() => null);
+  if (!channel || !channel.isTextBased()) {
+    return interaction.editReply('Gagal mengakses channel ticket.');
+  }
+
+  const messages = await channel.messages.fetch({ limit: 100 });
+  const imageAttachments = [];
+  for (const msg of messages.values()) {
+    for (const attachment of msg.attachments.values()) {
+      if (attachment.contentType && attachment.contentType.startsWith('image/')) {
+        imageAttachments.push(attachment);
+      }
+    }
+  }
+
+  if (imageAttachments.length === 0) {
+    return interaction.editReply('❌ Tidak ada gambar yang ditemukan di channel. Silakan upload minimal 1 gambar sebelum submit.');
+  }
+
+  if (imageAttachments.length > 10) {
+    return interaction.editReply('❌ Terlalu banyak gambar. Maksimal 10 gambar diperbolehkan.');
+  }
+
+  showcase.images = imageAttachments.map(img => img.url);
+  store.saveShowcase(showcase);
+
+  try {
+    const user = await client.users.fetch(showcase.userId);
+    const forumPost = await forumChannel.threads.create({
+      name: showcase.title,
+      message: {
+        content: '',
+        embeds: [embeds.showcaseForumPostEmbed(showcase, user)],
+      },
+      appliedTags: [],
+    });
+
+    // Add images to the forum post
+    if (imageAttachments.length > 0) {
+      const imageUrls = imageAttachments.map(img => img.url).join('\n');
+      await forumPost.send(imageUrls);
+    }
+
+    showcase.state = 'completed';
+    showcase.completedAt = Date.now();
+    showcase.forumPostId = forumPost.id;
+    store.saveShowcase(showcase);
+
+    const mainMessage = await fetchShowcaseMainMessage(showcase);
+    if (mainMessage) {
+      await mainMessage.edit({
+        embeds: [embeds.showcaseSubmittedEmbed(showcase)],
+        components: [closeOnlyRowShowcase(showcase.channelId)],
+      });
+    }
+
+    await interaction.editReply(`✅ Showcase berhasil diposting ke forum: ${forumPost.url}`);
+  } catch (error) {
+    console.error('Gagal memposting showcase ke forum:', error);
+    return interaction.editReply(`❌ Gagal memposting showcase ke forum: ${error.message}`);
+  }
+}
+
+async function beginClosingShowcase(showcase, reason) {
+  const latest = store.getShowcase(showcase.channelId);
+  if (!latest) return;
+
+  const channel = await client.channels.fetch(latest.channelId).catch(() => null);
+  if (channel?.isTextBased() && channel.send) {
+    await channel.send({ embeds: [embeds.closingEmbed(reason)] }).catch(() => null);
+  }
+  const mainMessage = await fetchShowcaseMainMessage(latest);
+  if (mainMessage) await mainMessage.edit({ components: [] }).catch(() => null);
+
+  store.removeShowcase(latest.channelId);
+  await channel.delete(reason).catch((error) => {
+    console.error(`Gagal menghapus channel showcase ${latest.number}:`, error.message);
+  });
+}
+
+function closeOnlyRowShowcase(channelId) {
+  return new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`showcase_close:${channelId}`)
+      .setLabel('Close Ticket')
+      .setEmoji('🔒')
+      .setStyle(ButtonStyle.Danger),
+  );
 }
 
 process.on('unhandledRejection', (error) => console.error('Unhandled promise rejection:', error));
