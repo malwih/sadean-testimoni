@@ -7,12 +7,7 @@ const storePath = path.join(dataDir, 'store.json');
 function ensureStore() {
   fs.mkdirSync(dataDir, { recursive: true });
   if (!fs.existsSync(storePath)) {
-    fs.writeFileSync(storePath, JSON.stringify({ 
-      nextTicketNumber: 1, 
-      nextShowcaseNumber: 1,
-      tickets: {},
-      showcases: {} 
-    }, null, 2));
+    fs.writeFileSync(storePath, JSON.stringify({ nextTicketNumber: 1, tickets: {} }, null, 2));
   }
 }
 
@@ -22,9 +17,7 @@ function readStore() {
     const parsed = JSON.parse(fs.readFileSync(storePath, 'utf8'));
     if (!parsed || typeof parsed !== 'object') throw new Error('Format penyimpanan tidak valid.');
     if (!parsed.tickets || typeof parsed.tickets !== 'object') parsed.tickets = {};
-    if (!parsed.showcases || typeof parsed.showcases !== 'object') parsed.showcases = {};
     if (!Number.isInteger(parsed.nextTicketNumber) || parsed.nextTicketNumber < 1) parsed.nextTicketNumber = 1;
-    if (!Number.isInteger(parsed.nextShowcaseNumber) || parsed.nextShowcaseNumber < 1) parsed.nextShowcaseNumber = 1;
     return parsed;
   } catch (error) {
     throw new Error(`Gagal membaca ${storePath}: ${error.message}`);
@@ -71,37 +64,6 @@ function removeTicket(channelId) {
   }
 }
 
-function nextShowcaseNumber() {
-  const number = data.nextShowcaseNumber;
-  data.nextShowcaseNumber += 1;
-  writeStore();
-  return String(number).padStart(4, '0');
-}
-
-function getShowcase(channelId) {
-  return data.showcases[channelId] || null;
-}
-
-function getAllShowcases() {
-  return Object.values(data.showcases);
-}
-
-function findShowcaseByUser(guildId, userId) {
-  return getAllShowcases().find((showcase) => showcase.guildId === guildId && showcase.userId === userId) || null;
-}
-
-function saveShowcase(showcase) {
-  data.showcases[showcase.channelId] = showcase;
-  writeStore();
-}
-
-function removeShowcase(channelId) {
-  if (data.showcases[channelId]) {
-    delete data.showcases[channelId];
-    writeStore();
-  }
-}
-
 module.exports = {
   nextTicketNumber,
   getTicket,
@@ -109,10 +71,4 @@ module.exports = {
   findTicketByUser,
   saveTicket,
   removeTicket,
-  nextShowcaseNumber,
-  getShowcase,
-  getAllShowcases,
-  findShowcaseByUser,
-  saveShowcase,
-  removeShowcase,
 };
