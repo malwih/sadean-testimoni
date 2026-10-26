@@ -41,7 +41,7 @@ const config = {
   testimoniRoleId: process.env.TESTIMONI_ROLE_ID?.trim() || null,
   openTicketChannelId: process.env.OPEN_TICKET_CHANNEL_ID?.trim() || null,
   ticketCategoryId: process.env.TICKET_CATEGORY_ID?.trim() || null,
-  skipCategoryId: process.env.SKIP_CATEGORY_ID?.trim() || null,
+  allowedCategoryIds: process.env.ALLOWED_CATEGORY_IDS?.trim().split(',').map(id => id.trim()).filter(id => id) || [],
 };
 
 const client = new Client({
@@ -167,13 +167,8 @@ client.on(Events.MessageCreate, async (message) => {
   if (!message.inGuild()) return;
   if (message.guildId !== config.guildId) return;
 
-  // Skip channels in configured category
-  if (config.skipCategoryId && message.channel.parentId === config.skipCategoryId) {
-    return;
-  }
-
-  // Skip forum channels entirely - Discord handles them differently
-  if (message.channel.type === ChannelType.GuildForum) {
+  // Only apply bot relay for channels in allowed categories
+  if (config.allowedCategoryIds.length === 0 || !config.allowedCategoryIds.includes(message.channel.parentId)) {
     return;
   }
 
