@@ -41,7 +41,6 @@ const config = {
   testimoniRoleId: process.env.TESTIMONI_ROLE_ID?.trim() || null,
   openTicketChannelId: process.env.OPEN_TICKET_CHANNEL_ID?.trim() || null,
   ticketCategoryId: process.env.TICKET_CATEGORY_ID?.trim() || null,
-  allowedCategoryIds: process.env.ALLOWED_CATEGORY_IDS?.trim().split(',').map(id => id.trim()).filter(id => id) || [],
 };
 
 const client = new Client({
@@ -159,44 +158,6 @@ client.on(Events.ChannelDelete, (channel) => {
   if (store.getTicket(channel.id)) {
     store.removeTicket(channel.id);
     console.log(`🗑️ Data ticket untuk channel ${channel.id} dihapus karena channel dihapus.`);
-  }
-});
-
-client.on(Events.MessageCreate, async (message) => {
-  if (message.author.bot) return;
-  if (!message.inGuild()) return;
-  if (message.guildId !== config.guildId) return;
-
-  // Only apply bot relay for channels in allowed categories
-  if (config.allowedCategoryIds.length === 0 || !config.allowedCategoryIds.includes(message.channel.parentId)) {
-    return;
-  }
-
-  const member = await message.guild.members.fetch(message.author.id).catch(() => null);
-  if (!member) return;
-
-  if (!member.roles.cache.has(config.staffRoleId)) return;
-
-  try {
-    const content = message.content;
-    const attachments = message.attachments;
-    const embeds = message.embeds;
-
-    await message.delete().catch((error) => {
-      console.error(`Gagal menghapus pesan dari ${message.author.tag}:`, error.message);
-    });
-
-    const sendOptions = {};
-    if (content) sendOptions.content = content;
-    if (attachments.size > 0) sendOptions.files = attachments.map(a => a);
-    if (embeds.length > 0) sendOptions.embeds = embeds;
-
-    if (Object.keys(sendOptions).length > 0) {
-      await message.channel.send(sendOptions);
-      console.log(`🔄 Pesan dari ${message.author.tag} dikirim ulang sebagai bot di #${message.channel.name}`);
-    }
-  } catch (error) {
-    console.error(`Gagal mengirim ulang pesan dari ${message.author.tag}:`, error.message);
   }
 });
 
