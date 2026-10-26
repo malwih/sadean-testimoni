@@ -420,6 +420,7 @@ function showcaseTicketActionRow(channelId, options = {}) {
 function showcaseTitleModal(channelId) {
   const titleInput = new TextInputBuilder()
     .setCustomId('showcase_title_input')
+    .setLabel('Judul Produk')
     .setStyle(TextInputStyle.Short)
     .setPlaceholder('Masukkan judul produk map Roblox...')
     .setMinLength(3)
@@ -437,6 +438,7 @@ function showcaseTitleModal(channelId) {
 function showcaseDescriptionModal(channelId) {
   const descInput = new TextInputBuilder()
     .setCustomId('showcase_description_input')
+    .setLabel('Deskripsi Produk')
     .setStyle(TextInputStyle.Paragraph)
     .setPlaceholder('Tulis deskripsi lengkap produk map Roblox kamu...')
     .setMinLength(10)
