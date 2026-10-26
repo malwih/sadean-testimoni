@@ -428,8 +428,8 @@ function showcaseTitleModal(channelId) {
 
   return new ModalBuilder()
     .setCustomId(`showcase_title_modal:${channelId}`)
-    .setTitle('📝 Judul Produk')
-    .addComponents(
+    .setTitle('Judul Produk')
+    .setComponents(
       new ActionRowBuilder().addComponents(titleInput)
     );
 }
@@ -445,8 +445,8 @@ function showcaseDescriptionModal(channelId) {
 
   return new ModalBuilder()
     .setCustomId(`showcase_description_modal:${channelId}`)
-    .setTitle('📄 Deskripsi Produk')
-    .addComponents(
+    .setTitle('Deskripsi Produk')
+    .setComponents(
       new ActionRowBuilder().addComponents(descInput)
     );
 }
