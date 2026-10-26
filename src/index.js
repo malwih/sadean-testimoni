@@ -176,18 +176,38 @@ client.on(Events.MessageCreate, async (message) => {
     const attachments = message.attachments;
     const embeds = message.embeds;
 
-    await message.delete().catch((error) => {
-      console.error(`Gagal menghapus pesan dari ${message.author.tag}:`, error.message);
-    });
+    const isForumChannel = message.channel.type === ChannelType.GuildForum;
+
+    if (!isForumChannel) {
+      await message.delete().catch((error) => {
+        console.error(`Gagal menghapus pesan dari ${message.author.tag}:`, error.message);
+      });
+    }
 
     const sendOptions = {};
     if (content) sendOptions.content = content;
-    if (attachments.size > 0) sendOptions.files = attachments.map(a => a);
-    if (embeds.length > 0) sendOptions.embeds = embeds;
+
+    if (attachments.size > 0) {
+      sendOptions.files = attachments.map(a => a);
+      // Add embeds for image attachments to display them visually
+      const imageAttachments = attachments.filter(a => a.contentType?.startsWith('image/'));
+      if (imageAttachments.size > 0) {
+        const imageEmbeds = imageAttachments.map(attachment => {
+          return new EmbedBuilder()
+            .setImage(attachment.url)
+            .setDescription(attachment.name);
+        });
+        sendOptions.embeds = [...embeds, ...imageEmbeds];
+      } else {
+        sendOptions.embeds = embeds;
+      }
+    } else {
+      if (embeds.length > 0) sendOptions.embeds = embeds;
+    }
 
     if (Object.keys(sendOptions).length > 0) {
       await message.channel.send(sendOptions);
-      console.log(`🔄 Pesan dari ${message.author.tag} dikirim ulang sebagai bot di #${message.channel.name}`);
+      console.log(`🔄 Pesan dari ${message.author.tag} dikirim ulang sebagai bot di #${message.channel.name}${isForumChannel ? ' (forum channel - pesan asli tidak dihapus)' : ''}`);
     }
   } catch (error) {
     console.error(`Gagal mengirim ulang pesan dari ${message.author.tag}:`, error.message);
