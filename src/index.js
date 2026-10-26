@@ -41,6 +41,7 @@ const config = {
   testimoniRoleId: process.env.TESTIMONI_ROLE_ID?.trim() || null,
   openTicketChannelId: process.env.OPEN_TICKET_CHANNEL_ID?.trim() || null,
   ticketCategoryId: process.env.TICKET_CATEGORY_ID?.trim() || null,
+  skipCategoryId: process.env.SKIP_CATEGORY_ID?.trim() || null,
 };
 
 const client = new Client({
@@ -165,6 +166,11 @@ client.on(Events.MessageCreate, async (message) => {
   if (message.author.bot) return;
   if (!message.inGuild()) return;
   if (message.guildId !== config.guildId) return;
+
+  // Skip channels in configured category
+  if (config.skipCategoryId && message.channel.parentId === config.skipCategoryId) {
+    return;
+  }
 
   // Skip forum channels entirely - Discord handles them differently
   if (message.channel.type === ChannelType.GuildForum) {
