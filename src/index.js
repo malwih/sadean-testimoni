@@ -20,6 +20,7 @@ const {
   TextInputStyle,
 } = require('discord.js');
 const path = require('node:path');
+const https = require('node:https');
 const store = require('./store');
 const embeds = require('./embeds');
 
@@ -164,6 +165,20 @@ client.on(Events.ChannelDelete, (channel) => {
 
 client.on(Events.Error, (error) => console.error('Discord client error:', error));
 
+async function downloadAttachment(url) {
+  return new Promise((resolve, reject) => {
+    https.get(url, (response) => {
+      if (response.statusCode !== 200) {
+        reject(new Error(`Failed to download attachment: ${response.statusCode}`));
+        return;
+      }
+      const chunks = [];
+      response.on('data', (chunk) => chunks.push(chunk));
+      response.on('end', () => resolve(Buffer.concat(chunks)));
+    }).on('error', reject);
+  });
+}
+
 client.on(Events.MessageCreate, async (message) => {
   if (message.author.bot) return;
   if (!message.inGuild()) return;
@@ -179,12 +194,20 @@ client.on(Events.MessageCreate, async (message) => {
   if (!member.roles.cache.has(config.staffRoleId)) return;
 
   try {
-    await message.delete().catch(() => null);
+    const attachments = [];
+    for (const attachment of message.attachments.values()) {
+      try {
+        const buffer = await downloadAttachment(attachment.url);
+        attachments.push({
+          attachment: buffer,
+          name: attachment.name,
+        });
+      } catch (error) {
+        console.error(`Gagal mendownload attachment ${attachment.name}:`, error.message);
+      }
+    }
 
-    const attachments = message.attachments.map(attachment => ({
-      attachment: attachment.url,
-      name: attachment.name,
-    }));
+    await message.delete().catch(() => null);
 
     await channel.send({
       content: message.content || undefined,
