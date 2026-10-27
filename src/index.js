@@ -58,6 +58,8 @@ const REJECTED_TIMEOUT_MS = 15 * 60 * 1000;
 const ACCEPTED_TIMEOUT_MS = 15 * 60 * 1000;
 const CLOSE_GRACE_MS = 5 * 1000;
 
+let relayEnabled = true;
+
 const setupCommand = new SlashCommandBuilder()
   .setName('setup-testimoni')
   .setDescription('Pasang panel Send Testimoni di channel yang dikonfigurasi.')
@@ -81,13 +83,23 @@ const untestimoniCommand = new SlashCommandBuilder()
       .setRequired(true))
   .setDefaultMemberPermissions(PermissionFlagsBits.Administrator);
 
+const relayEnableCommand = new SlashCommandBuilder()
+  .setName('relay-enable')
+  .setDescription('Aktifkan fitur relay pesan staff sebagai bot.')
+  .setDefaultMemberPermissions(PermissionFlagsBits.Administrator);
+
+const relayDisableCommand = new SlashCommandBuilder()
+  .setName('relay-disable')
+  .setDescription('Nonaktifkan fitur relay pesan staff sebagai bot.')
+  .setDefaultMemberPermissions(PermissionFlagsBits.Administrator);
+
 client.once(Events.ClientReady, async (readyClient) => {
   console.log(`✅ Login sebagai ${readyClient.user.tag}`);
 
   try {
     const rest = new REST({ version: '10' }).setToken(config.token);
     await rest.put(Routes.applicationGuildCommands(config.clientId, config.guildId), {
-      body: [setupCommand.toJSON(), testimoniCommand.toJSON(), untestimoniCommand.toJSON()],
+      body: [setupCommand.toJSON(), testimoniCommand.toJSON(), untestimoniCommand.toJSON(), relayEnableCommand.toJSON(), relayDisableCommand.toJSON()],
     });
     console.log('✅ Slash command berhasil didaftarkan.');
   } catch (error) {
@@ -127,6 +139,12 @@ client.on(Events.InteractionCreate, async (interaction) => {
       if (interaction.commandName === 'untesti') {
         await handleUntestimoniCommand(interaction);
       }
+      if (interaction.commandName === 'relay-enable') {
+        await handleRelayEnableCommand(interaction);
+      }
+      if (interaction.commandName === 'relay-disable') {
+        await handleRelayDisableCommand(interaction);
+      }
       return;
     }
 
@@ -165,17 +183,30 @@ client.on(Events.ChannelDelete, (channel) => {
 
 client.on(Events.Error, (error) => console.error('Discord client error:', error));
 
-async function downloadAttachment(url) {
+async function downloadAttachment(url, filename) {
   return new Promise((resolve, reject) => {
-    https.get(url, (response) => {
+    const timeout = setTimeout(() => {
+      req.destroy();
+      reject(new Error(`Download timeout for ${filename}`));
+    }, 60000);
+
+    const req = https.get(url, (response) => {
       if (response.statusCode !== 200) {
+        clearTimeout(timeout);
         reject(new Error(`Failed to download attachment: ${response.statusCode}`));
         return;
       }
       const chunks = [];
       response.on('data', (chunk) => chunks.push(chunk));
-      response.on('end', () => resolve(Buffer.concat(chunks)));
-    }).on('error', reject);
+      response.on('end', () => {
+        clearTimeout(timeout);
+        console.log(`✅ Downloaded ${filename} (${Buffer.concat(chunks).length} bytes)`);
+        resolve(Buffer.concat(chunks));
+      });
+    }).on('error', (error) => {
+      clearTimeout(timeout);
+      reject(error);
+    });
   });
 }
 
@@ -184,6 +215,7 @@ client.on(Events.MessageCreate, async (message) => {
   if (!message.inGuild()) return;
   if (message.guildId !== config.guildId) return;
   if (!config.allowedCategoryIds.length) return;
+  if (!relayEnabled) return;
 
   const channel = message.channel;
   if (!channel.parentId) return;
@@ -194,19 +226,22 @@ client.on(Events.MessageCreate, async (message) => {
   if (!member.roles.cache.has(config.staffRoleId)) return;
 
   try {
+    console.log(`📥 Processing ${message.attachments.size} attachment(s) from ${message.author.tag}`);
     const attachments = [];
     for (const attachment of message.attachments.values()) {
       try {
-        const buffer = await downloadAttachment(attachment.url);
+        console.log(`⬇️ Downloading ${attachment.name} (${attachment.size} bytes)...`);
+        const buffer = await downloadAttachment(attachment.url, attachment.name);
         attachments.push({
           attachment: buffer,
           name: attachment.name,
         });
       } catch (error) {
-        console.error(`Gagal mendownload attachment ${attachment.name}:`, error.message);
+        console.error(`❌ Gagal mendownload attachment ${attachment.name}:`, error.message);
       }
     }
 
+    console.log(`📤 Sending ${attachments.length} attachment(s) as bot...`);
     await message.delete().catch(() => null);
 
     await channel.send({
@@ -367,6 +402,32 @@ async function handleUntestimoniCommand(interaction) {
     console.error('Gagal menghapus role testimoni:', error);
     return interaction.editReply(`❌ Gagal menghapus role testimoni: ${error.message}`);
   }
+}
+
+async function handleRelayEnableCommand(interaction) {
+  if (!interaction.inGuild() || interaction.guildId !== config.guildId) {
+    return interaction.reply({ content: 'Command ini hanya dapat dipakai di server yang dikonfigurasi pada `.env`.', ephemeral: true });
+  }
+  if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) {
+    return interaction.reply({ content: 'Hanya administrator server yang dapat menggunakan command ini.', ephemeral: true });
+  }
+
+  relayEnabled = true;
+  console.log('✅ Relay fitur diaktifkan oleh', interaction.user.tag);
+  return interaction.reply({ content: '✅ Fitur relay pesan staff sebagai bot telah diaktifkan.', ephemeral: true });
+}
+
+async function handleRelayDisableCommand(interaction) {
+  if (!interaction.inGuild() || interaction.guildId !== config.guildId) {
+    return interaction.reply({ content: 'Command ini hanya dapat dipakai di server yang dikonfigurasi pada `.env`.', ephemeral: true });
+  }
+  if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) {
+    return interaction.reply({ content: 'Hanya administrator server yang dapat menggunakan command ini.', ephemeral: true });
+  }
+
+  relayEnabled = false;
+  console.log('❌ Relay fitur dinonaktifkan oleh', interaction.user.tag);
+  return interaction.reply({ content: '❌ Fitur relay pesan staff sebagai bot telah dinonaktifkan.', ephemeral: true });
 }
 
 async function handleButton(interaction) {
