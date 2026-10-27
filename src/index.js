@@ -43,6 +43,7 @@ const config = {
   openTicketChannelId: process.env.OPEN_TICKET_CHANNEL_ID?.trim() || null,
   ticketCategoryId: process.env.TICKET_CATEGORY_ID?.trim() || null,
   allowedCategoryIds: process.env.ALLOWED_CATEGORY_IDS?.trim().split(',').map(id => id.trim()).filter(id => id) || [],
+  broadcastChannelId: process.env.BROADCAST_CHANNEL_ID?.trim() || null,
 };
 
 const client = new Client({
@@ -60,6 +61,11 @@ const CLOSE_GRACE_MS = 5 * 1000;
 
 let relayEnabled = true;
 const MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024;
+
+let broadcastEnabled = false;
+let broadcastMessageId = null;
+let broadcastTimer = null;
+const BROADCAST_INTERVAL_MS = 30 * 60 * 1000;
 
 const setupCommand = new SlashCommandBuilder()
   .setName('setup-testimoni')
@@ -94,13 +100,23 @@ const relayDisableCommand = new SlashCommandBuilder()
   .setDescription('Nonaktifkan fitur relay pesan staff sebagai bot.')
   .setDefaultMemberPermissions(PermissionFlagsBits.Administrator);
 
+const broadcastEnableCommand = new SlashCommandBuilder()
+  .setName('broadcast-enable')
+  .setDescription('Aktifkan broadcast pesan otomatis setiap 30 menit.')
+  .setDefaultMemberPermissions(PermissionFlagsBits.Administrator);
+
+const broadcastDisableCommand = new SlashCommandBuilder()
+  .setName('broadcast-disable')
+  .setDescription('Nonaktifkan broadcast pesan otomatis.')
+  .setDefaultMemberPermissions(PermissionFlagsBits.Administrator);
+
 client.once(Events.ClientReady, async (readyClient) => {
   console.log(`✅ Login sebagai ${readyClient.user.tag}`);
 
   try {
     const rest = new REST({ version: '10' }).setToken(config.token);
     await rest.put(Routes.applicationGuildCommands(config.clientId, config.guildId), {
-      body: [setupCommand.toJSON(), testimoniCommand.toJSON(), untestimoniCommand.toJSON(), relayEnableCommand.toJSON(), relayDisableCommand.toJSON()],
+      body: [setupCommand.toJSON(), testimoniCommand.toJSON(), untestimoniCommand.toJSON(), relayEnableCommand.toJSON(), relayDisableCommand.toJSON(), broadcastEnableCommand.toJSON(), broadcastDisableCommand.toJSON()],
     });
     console.log('✅ Slash command berhasil didaftarkan.');
   } catch (error) {
@@ -145,6 +161,12 @@ client.on(Events.InteractionCreate, async (interaction) => {
       }
       if (interaction.commandName === 'relay-disable') {
         await handleRelayDisableCommand(interaction);
+      }
+      if (interaction.commandName === 'broadcast-enable') {
+        await handleBroadcastEnableCommand(interaction);
+      }
+      if (interaction.commandName === 'broadcast-disable') {
+        await handleBroadcastDisableCommand(interaction);
       }
       return;
     }
@@ -448,6 +470,95 @@ async function handleRelayDisableCommand(interaction) {
   relayEnabled = false;
   console.log('❌ Relay fitur dinonaktifkan oleh', interaction.user.tag);
   return interaction.reply({ content: '❌ Fitur relay pesan staff sebagai bot telah dinonaktifkan.', ephemeral: true });
+}
+
+async function handleBroadcastEnableCommand(interaction) {
+  if (!interaction.inGuild() || interaction.guildId !== config.guildId) {
+    return interaction.reply({ content: 'Command ini hanya dapat dipakai di server yang dikonfigurasi pada `.env`.', ephemeral: true });
+  }
+  if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) {
+    return interaction.reply({ content: 'Hanya administrator server yang dapat menggunakan command ini.', ephemeral: true });
+  }
+  if (!config.broadcastChannelId) {
+    return interaction.reply({ content: 'BROADCAST_CHANNEL_ID belum dikonfigurasi di `.env`.', ephemeral: true });
+  }
+
+  startBroadcast();
+  console.log('✅ Broadcast diaktifkan oleh', interaction.user.tag);
+  return interaction.reply({ content: '✅ Broadcast pesan otomatis telah diaktifkan (setiap 30 menit).', ephemeral: true });
+}
+
+async function handleBroadcastDisableCommand(interaction) {
+  if (!interaction.inGuild() || interaction.guildId !== config.guildId) {
+    return interaction.reply({ content: 'Command ini hanya dapat dipakai di server yang dikonfigurasi pada `.env`.', ephemeral: true });
+  }
+  if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) {
+    return interaction.reply({ content: 'Hanya administrator server yang dapat menggunakan command ini.', ephemeral: true });
+  }
+
+  stopBroadcast();
+  console.log('❌ Broadcast dinonaktifkan oleh', interaction.user.tag);
+  return interaction.reply({ content: '❌ Broadcast pesan otomatis telah dinonaktifkan.', ephemeral: true });
+}
+
+async function sendBroadcastMessage() {
+  if (!config.broadcastChannelId) {
+    console.warn('⚠️ BROADCAST_CHANNEL_ID tidak dikonfigurasi. Broadcast dihentikan.');
+    stopBroadcast();
+    return;
+  }
+
+  const channel = await client.channels.fetch(config.broadcastChannelId).catch(() => null);
+  if (!channel || !channel.isTextBased() || !channel.send) {
+    console.warn('⚠️ Channel broadcast tidak ditemukan atau bukan channel teks. Broadcast dihentikan.');
+    stopBroadcast();
+    return;
+  }
+
+  try {
+    if (broadcastMessageId) {
+      const oldMessage = await channel.messages.fetch(broadcastMessageId).catch(() => null);
+      if (oldMessage) {
+        await oldMessage.delete().catch(() => null);
+        console.log('🗑️ Pesan broadcast lama dihapus');
+      }
+    }
+
+    const newMessage = await channel.send({
+      content: '🛒 **MAU ORDER? GAS LANGSUNG!**\n\nMau beli Map, Asset, atau jasa lainnya?\nKlik tombol **📩 OPEN TICKET** di atas untuk mulai order!\n\n✨ *Semua pemesanan melalui ticket, ya!*',
+    });
+    broadcastMessageId = newMessage.id;
+    console.log(`✅ Pesan broadcast dikirim di <#${channel.id}> [${newMessage.url}]`);
+  } catch (error) {
+    console.error('❌ Gagal mengirim pesan broadcast:', error.message);
+  }
+}
+
+function startBroadcast() {
+  if (broadcastTimer) return;
+  if (!config.broadcastChannelId) {
+    console.warn('⚠️ BROADCAST_CHANNEL_ID tidak dikonfigurasi. Tidak dapat memulai broadcast.');
+    return;
+  }
+
+  broadcastEnabled = true;
+  sendBroadcastMessage();
+  broadcastTimer = setInterval(() => {
+    if (broadcastEnabled) {
+      sendBroadcastMessage();
+    }
+  }, BROADCAST_INTERVAL_MS);
+  console.log('✅ Broadcast diaktifkan (setiap 30 menit)');
+}
+
+function stopBroadcast() {
+  if (broadcastTimer) {
+    clearInterval(broadcastTimer);
+    broadcastTimer = null;
+  }
+  broadcastEnabled = false;
+  broadcastMessageId = null;
+  console.log('❌ Broadcast dinonaktifkan');
 }
 
 async function handleButton(interaction) {
