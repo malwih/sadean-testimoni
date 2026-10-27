@@ -59,6 +59,7 @@ const ACCEPTED_TIMEOUT_MS = 15 * 60 * 1000;
 const CLOSE_GRACE_MS = 5 * 1000;
 
 let relayEnabled = true;
+const MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024;
 
 const setupCommand = new SlashCommandBuilder()
   .setName('setup-testimoni')
@@ -228,7 +229,16 @@ client.on(Events.MessageCreate, async (message) => {
   try {
     console.log(`📥 Processing ${message.attachments.size} attachment(s) from ${message.author.tag}`);
     const attachments = [];
+    const skippedFiles = [];
     for (const attachment of message.attachments.values()) {
+      if (attachment.size > MAX_FILE_SIZE_BYTES) {
+        const sizeMB = (attachment.size / (1024 * 1024)).toFixed(2);
+        const limitMB = (MAX_FILE_SIZE_BYTES / (1024 * 1024)).toFixed(2);
+        console.warn(`⚠️ Skipping ${attachment.name} (${sizeMB}MB) - exceeds limit of ${limitMB}MB`);
+        skippedFiles.push(`${attachment.name} (${sizeMB}MB)`);
+        continue;
+      }
+
       try {
         console.log(`⬇️ Downloading ${attachment.name} (${attachment.size} bytes)...`);
         const buffer = await downloadAttachment(attachment.url, attachment.name);
@@ -241,11 +251,21 @@ client.on(Events.MessageCreate, async (message) => {
       }
     }
 
+    if (skippedFiles.length > 0) {
+      console.warn(`⚠️ Skipped ${skippedFiles.length} file(s) due to size limit: ${skippedFiles.join(', ')}`);
+    }
+
     console.log(`📤 Sending ${attachments.length} attachment(s) as bot...`);
     await message.delete().catch(() => null);
 
+    let content = message.content || undefined;
+    if (skippedFiles.length > 0) {
+      const skipMessage = `\n\n⚠️ **File terlalu besar untuk relay (${(MAX_FILE_SIZE_BYTES / (1024 * 1024)).toFixed(0)}MB limit):** ${skippedFiles.join(', ')}`;
+      content = content ? content + skipMessage : skipMessage.substring(2);
+    }
+
     await channel.send({
-      content: message.content || undefined,
+      content: content,
       embeds: message.embeds,
       files: attachments.length > 0 ? attachments : undefined,
     }).catch((error) => {
