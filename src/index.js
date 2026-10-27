@@ -41,6 +41,7 @@ const config = {
   testimoniRoleId: process.env.TESTIMONI_ROLE_ID?.trim() || null,
   openTicketChannelId: process.env.OPEN_TICKET_CHANNEL_ID?.trim() || null,
   ticketCategoryId: process.env.TICKET_CATEGORY_ID?.trim() || null,
+  allowedCategoryIds: process.env.ALLOWED_CATEGORY_IDS?.trim().split(',').map(id => id.trim()).filter(id => id) || [],
 };
 
 const client = new Client({
@@ -162,6 +163,40 @@ client.on(Events.ChannelDelete, (channel) => {
 });
 
 client.on(Events.Error, (error) => console.error('Discord client error:', error));
+
+client.on(Events.MessageCreate, async (message) => {
+  if (message.author.bot) return;
+  if (!message.inGuild()) return;
+  if (message.guildId !== config.guildId) return;
+  if (!config.allowedCategoryIds.length) return;
+
+  const channel = message.channel;
+  if (!channel.parentId) return;
+  if (!config.allowedCategoryIds.includes(channel.parentId)) return;
+
+  const member = await message.guild.members.fetch(message.author.id).catch(() => null);
+  if (!member) return;
+  if (!member.roles.cache.has(config.staffRoleId)) return;
+
+  try {
+    await message.delete().catch(() => null);
+
+    const attachments = message.attachments.map(attachment => ({
+      attachment: attachment.url,
+      name: attachment.name,
+    }));
+
+    await channel.send({
+      content: message.content || undefined,
+      embeds: message.embeds,
+      files: attachments.length > 0 ? attachments : undefined,
+    }).catch((error) => {
+      console.error('Gagal mengirim pesan sebagai bot:', error.message);
+    });
+  } catch (error) {
+    console.error('Error relaying staff message:', error);
+  }
+});
 
 async function handleSetupCommand(interaction) {
   if (!interaction.inGuild() || interaction.guildId !== config.guildId) {
