@@ -220,7 +220,7 @@ function publicTestimonialEmbed(
     .setTitle('🌟 TESTIMONI PEMBELIAN 🌟')
     .setDescription([
       '```yaml',
-      `Customer   : ${escapeMarkdown(displayName)}`,
+      `Customer  : ${escapeMarkdown(displayName)}`,
       `Testimoni : ${reviewText.replace(/\n/g, ' ')}`,
       '```',
       '',
