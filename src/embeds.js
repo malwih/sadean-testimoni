@@ -216,39 +216,27 @@ function publicTestimonialEmbed(
     : 'Channel open-ticket';
 
   return new EmbedBuilder()
-    .setColor(ORANGE)
-    .setTitle('🌟 TESTIMONI')
-    .setDescription('Terima kasih telah membagikan pengalamanmu bersama kami! 🧡')
-    .addFields(
-      // Baris pertama: Nama Pembeli
-      {
-        name: '👤 Pembeli',
-        value: escapeMarkdown(displayName),
-        inline: false
-      },
-      // Baris kedua: Isi Testimoni (dengan kotak)
-      {
-        name: '📝 Testimoni',
-        value: `\`${reviewText}\``,
-        inline: false
-      },
-      // Baris ketiga: User ID, Order Via, Rating
-      {
-        name: '🆔 User ID',
-        value: `\`${user.id}\``,
-        inline: true
-      },
-      {
-        name: '🛒 Order Via',
-        value: orderViaValue,
-        inline: true
-      },
-      {
-        name: '⭐ Rating',
-        value: `\`${'⭐'.repeat(ticket.rating)} ${ticket.rating}/5\``,
-        inline: true
-      },
-    )
+    .setColor(0x57f287)
+    .setTitle('🌟 TESTIMONI PEMBELIAN 🌟')
+    .setDescription([
+      '```yaml',
+      `Pembeli   : ${escapeMarkdown(displayName)}`,
+      `Testimoni : ${reviewText.replace(/\n/g, ' ')}`,
+      '```',
+      '',
+      '✨ **Testimoni berhasil diverifikasi oleh staff!**',
+      '',
+      `👤 **Customer Discord** : <@${user.id}>`,
+      `⭐ **Rating**           : \`${'⭐'.repeat(ticket.rating)} ${ticket.rating}/5\``,
+      `🆔 **User ID**          : \`${user.id}\``,
+      `🛒 **Order Via**        : ${orderViaValue}`,
+      `🧾 **Ticket ID**        : \`#${ticket.number}\``,
+      `📅 **Tanggal**          : **${new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })} WIB**`,
+      `🛠️ **Diverifikasi Oleh** : Staff`,
+      '',
+      `💚 Terima kasih sudah mempercayai **${BRAND}**`,
+      '🚀 Ditunggu order berikutnya yaa!',
+    ].join('\n'))
     .setThumbnail(user.displayAvatarURL({ size: 256 }))
     .setFooter({
       text: `Terverifikasi oleh staff • ${BRAND}`
