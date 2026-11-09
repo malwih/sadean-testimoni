@@ -358,14 +358,14 @@ async function handleTestimoniCommand(interaction) {
         embeds: [new EmbedBuilder()
           .setColor(0xF97316)
           .setAuthor({
-            name: 'SADEAN STUDIO',
+            name: 'Studio',
             iconURL: interaction.guild.iconURL({ size: 128 }),
           })
           .setTitle('🧡 Terima Kasih Telah Membeli!')
           .setDescription([
             `Halo ${targetUser.globalName || targetUser.username}! 👋`,
             '',
-            'Terima kasih sudah mempercayai **Sadean Studio** untuk kebutuhan map atau asset Roblox kamu! 🎉',
+            'Terima kasih sudah mempercayai kami untuk kebutuhan map atau asset Roblox kamu! 🎉',
             '',
             'Kami sangat ingin mendengar pengalamanmu. Yuk, bagikan testimoni kamu!',
           ].join('\n'))
@@ -389,7 +389,7 @@ async function handleTestimoniCommand(interaction) {
             },
           )
           .setThumbnail(interaction.guild.iconURL({ size: 256 }))
-          .setFooter({ text: 'Ulasan pelanggan, pengalaman nyata • SADEAN STUDIO' })
+          .setFooter({ text: 'Ulasan pelanggan, pengalaman nyata • Studio' })
           .setTimestamp()],
       }).catch((error) => {
         console.error('Gagal mengirim DM ke user:', error.message);
@@ -725,7 +725,7 @@ function buildTestimonialModal(channelId, isStaff = false) {
   const reviewInput = new TextInputBuilder()
     .setCustomId('testimonial_text')
     .setStyle(TextInputStyle.Paragraph)
-    .setPlaceholder('Ceritakan pengalaman kamu membeli map atau asset di Sadean Studio...')
+    .setPlaceholder('Ceritakan pengalaman kamu membeli map atau asset...')
     .setMinLength(5)
     .setMaxLength(1000)
     .setRequired(true);

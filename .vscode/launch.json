@@ -2,7 +2,7 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Run Sadean Studio Testimoni Bot",
+      "name": "Run Custom Testimoni Bot",
       "type": "node",
       "request": "launch",
       "program": "${workspaceFolder}/src/index.js",

@@ -11,14 +11,14 @@ const GREEN = 0x22C55E;
 const RED = 0xEF4444;
 const BLUE = 0x3B82F6;
 const GRAY = 0x64748B;
-const BRAND = 'SADEAN STUDIO';
+const BRAND = 'DEV';
 
 function panelEmbed() {
   return new EmbedBuilder()
     .setColor(ORANGE)
-    .setTitle('🧡 SADEAN STUDIO • TESTIMONI PEMBELIAN')
+    .setTitle('🧡 TESTIMONI PEMBELIAN')
     .setDescription([
-      'Terima kasih sudah mempercayai **Sadean Studio**! ✨',
+      'Terima kasih sudah mempercayai kami! ✨',
       '',
       'Punya pengalaman setelah membeli map atau asset Roblox kami? Ceritakan pengalamanmu supaya calon pembeli lain bisa melihat ulasan asli dari pelanggan.',
       '',
@@ -217,17 +217,16 @@ function publicTestimonialEmbed(
 
   return new EmbedBuilder()
     .setColor(ORANGE)
-    .setTitle('🌟 TESTIMONI — SADEAN STUDIO')
+    .setTitle('🌟 TESTIMONI')
     .setDescription([
+      `**${escapeMarkdown(displayName)}**`,
+      '',
+      reviewText,
+      '',
       'Terima kasih telah membagikan pengalamanmu bersama kami! 🧡'
     ].join('\n'))
     .addFields(
-      // Baris pertama: Pembeli, User ID, Order Via
-      {
-        name: '👤 Pembeli',
-        value: escapeMarkdown(displayName),
-        inline: true
-      },
+      // Baris pertama: User ID, Order Via
       {
         name: '🆔 User ID',
         value: `\`${user.id}\``,
@@ -239,15 +238,10 @@ function publicTestimonialEmbed(
         inline: true
       },
 
-      // Baris kedua: Rating dan Isi Testimoni
+      // Baris kedua: Rating
       {
         name: '⭐ Rating',
         value: `\`${'⭐'.repeat(ticket.rating)} ${ticket.rating}/5\``,
-        inline: true
-      },
-      {
-        name: '📝 Isi Testimoni',
-        value: `\`${reviewText}\``,
         inline: true
       },
     )

@@ -1,4 +1,4 @@
-# 🧡 Sadean Studio — Custom Testimoni Bot
+# 🧡 Custom Testimoni Bot
 
 Bot Discord berbasis **Node.js + discord.js** untuk alur testimoni pembelian map dan asset Roblox. Proyek ini bisa dibuka dan dijalankan dari Visual Studio Code.
 
@@ -32,7 +32,7 @@ Bot Discord berbasis **Node.js + discord.js** untuk alur testimoni pembelian map
 ## 2. Buat bot di Discord Developer Portal
 
 1. Buka [Discord Developer Portal](https://discord.com/developers/applications).
-2. Klik **New Application**, beri nama misalnya `Sadean Studio Testimoni`.
+2. Klik **New Application**, beri nama misalnya `Custom Testimoni Bot`.
 3. Buka menu **Bot**, buat/siapkan bot, lalu salin **Bot Token**. Jangan membagikan token ke orang lain.
 4. Di halaman **Bot**, aktifkan **Message Content Intent** pada bagian Privileged Gateway Intents. Ini diperlukan agar bot dapat mendeteksi lampiran yang diunggah dalam ticket.
 5. Di menu **General Information**, salin **Application ID**.
