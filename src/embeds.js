@@ -220,13 +220,12 @@ function publicTestimonialEmbed(
     .setTitle('🌟 TESTIMONI PEMBELIAN 🌟')
     .setDescription([
       '```yaml',
-      `Pembeli   : ${escapeMarkdown(displayName)}`,
+      `Customer   : ${escapeMarkdown(displayName)}`,
       `Testimoni : ${reviewText.replace(/\n/g, ' ')}`,
       '```',
       '',
       '✨ **Testimoni berhasil diverifikasi oleh staff!**',
       '',
-      `👤 **Customer Discord** : <@${user.id}>`,
       `⭐ **Rating**           : \`${'⭐'.repeat(ticket.rating)} ${ticket.rating}/5\``,
       `🆔 **User ID**          : \`${user.id}\``,
       `🛒 **Order Via**        : ${orderViaValue}`,
