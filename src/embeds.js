@@ -218,15 +218,21 @@ function publicTestimonialEmbed(
   return new EmbedBuilder()
     .setColor(ORANGE)
     .setTitle('🌟 TESTIMONI')
-    .setDescription([
-      `**${escapeMarkdown(displayName)}**`,
-      '',
-      reviewText,
-      '',
-      'Terima kasih telah membagikan pengalamanmu bersama kami! 🧡'
-    ].join('\n'))
+    .setDescription('Terima kasih telah membagikan pengalamanmu bersama kami! 🧡')
     .addFields(
-      // Baris pertama: User ID, Order Via
+      // Baris pertama: Nama Pembeli
+      {
+        name: '👤 Pembeli',
+        value: escapeMarkdown(displayName),
+        inline: false
+      },
+      // Baris kedua: Isi Testimoni (dengan kotak)
+      {
+        name: '📝 Testimoni',
+        value: `\`${reviewText}\``,
+        inline: false
+      },
+      // Baris ketiga: User ID, Order Via, Rating
       {
         name: '🆔 User ID',
         value: `\`${user.id}\``,
@@ -237,8 +243,6 @@ function publicTestimonialEmbed(
         value: orderViaValue,
         inline: true
       },
-
-      // Baris kedua: Rating
       {
         name: '⭐ Rating',
         value: `\`${'⭐'.repeat(ticket.rating)} ${ticket.rating}/5\``,
