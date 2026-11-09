@@ -230,7 +230,6 @@ function publicTestimonialEmbed(
       `⭐ **Rating**           : \`${'⭐'.repeat(ticket.rating)} ${ticket.rating}/5\``,
       `🆔 **User ID**          : \`${user.id}\``,
       `🛒 **Order Via**        : ${orderViaValue}`,
-      `🧾 **Ticket ID**        : \`#${ticket.number}\``,
       `📅 **Tanggal**          : **${new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })} WIB**`,
       `🛠️ **Diverifikasi Oleh** : Staff`,
       '',

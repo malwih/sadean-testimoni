@@ -358,7 +358,7 @@ async function handleTestimoniCommand(interaction) {
         embeds: [new EmbedBuilder()
           .setColor(0xF97316)
           .setAuthor({
-            name: 'Studio',
+            name: 'DEV',
             iconURL: interaction.guild.iconURL({ size: 128 }),
           })
           .setTitle('🧡 Terima Kasih Telah Membeli!')
@@ -389,7 +389,7 @@ async function handleTestimoniCommand(interaction) {
             },
           )
           .setThumbnail(interaction.guild.iconURL({ size: 256 }))
-          .setFooter({ text: 'Ulasan pelanggan, pengalaman nyata • Studio' })
+          .setFooter({ text: 'Ulasan pelanggan, pengalaman nyata • DEV' })
           .setTimestamp()],
       }).catch((error) => {
         console.error('Gagal mengirim DM ke user:', error.message);
