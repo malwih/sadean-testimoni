@@ -44,6 +44,8 @@ const config = {
   ticketCategoryId: process.env.TICKET_CATEGORY_ID?.trim() || null,
   allowedCategoryIds: process.env.ALLOWED_CATEGORY_IDS?.trim().split(',').map(id => id.trim()).filter(id => id) || [],
   broadcastChannelId: process.env.BROADCAST_CHANNEL_ID?.trim() || null,
+  forumChannelId: process.env.FORUM_CHANNEL_ID?.trim() || null,
+  announcementChannelId: process.env.ANNOUNCEMENT_CHANNEL_ID?.trim() || null,
 };
 
 const client = new Client({
@@ -66,6 +68,11 @@ let broadcastEnabled = false;
 let broadcastMessageId = null;
 let broadcastTimer = null;
 const BROADCAST_INTERVAL_MS = 30 * 60 * 1000;
+
+let forumForwardEnabled = false;
+let forumForwardedPostIds = new Set();
+let forumForwardTimer = null;
+const FORUM_FORWARD_INTERVAL_MS = 30 * 60 * 1000;
 
 const setupCommand = new SlashCommandBuilder()
   .setName('setup-testimoni')
@@ -110,13 +117,23 @@ const broadcastDisableCommand = new SlashCommandBuilder()
   .setDescription('Nonaktifkan broadcast pesan otomatis.')
   .setDefaultMemberPermissions(PermissionFlagsBits.Administrator);
 
+const forumForwardEnableCommand = new SlashCommandBuilder()
+  .setName('forum-forward-enable')
+  .setDescription('Aktifkan forward postingan forum ke announcement setiap 30 menit.')
+  .setDefaultMemberPermissions(PermissionFlagsBits.Administrator);
+
+const forumForwardDisableCommand = new SlashCommandBuilder()
+  .setName('forum-forward-disable')
+  .setDescription('Nonaktifkan forward postingan forum.')
+  .setDefaultMemberPermissions(PermissionFlagsBits.Administrator);
+
 client.once(Events.ClientReady, async (readyClient) => {
   console.log(`✅ Login sebagai ${readyClient.user.tag}`);
 
   try {
     const rest = new REST({ version: '10' }).setToken(config.token);
     await rest.put(Routes.applicationGuildCommands(config.clientId, config.guildId), {
-      body: [setupCommand.toJSON(), testimoniCommand.toJSON(), untestimoniCommand.toJSON(), relayEnableCommand.toJSON(), relayDisableCommand.toJSON(), broadcastEnableCommand.toJSON(), broadcastDisableCommand.toJSON()],
+      body: [setupCommand.toJSON(), testimoniCommand.toJSON(), untestimoniCommand.toJSON(), relayEnableCommand.toJSON(), relayDisableCommand.toJSON(), broadcastEnableCommand.toJSON(), broadcastDisableCommand.toJSON(), forumForwardEnableCommand.toJSON(), forumForwardDisableCommand.toJSON()],
     });
     console.log('✅ Slash command berhasil didaftarkan.');
   } catch (error) {
@@ -167,6 +184,12 @@ client.on(Events.InteractionCreate, async (interaction) => {
       }
       if (interaction.commandName === 'broadcast-disable') {
         await handleBroadcastDisableCommand(interaction);
+      }
+      if (interaction.commandName === 'forum-forward-enable') {
+        await handleForumForwardEnableCommand(interaction);
+      }
+      if (interaction.commandName === 'forum-forward-disable') {
+        await handleForumForwardDisableCommand(interaction);
       }
       return;
     }
@@ -501,6 +524,35 @@ async function handleBroadcastDisableCommand(interaction) {
   return interaction.reply({ content: '❌ Broadcast pesan otomatis telah dinonaktifkan.', ephemeral: true });
 }
 
+async function handleForumForwardEnableCommand(interaction) {
+  if (!interaction.inGuild() || interaction.guildId !== config.guildId) {
+    return interaction.reply({ content: 'Command ini hanya dapat dipakai di server yang dikonfigurasi pada `.env`.', ephemeral: true });
+  }
+  if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) {
+    return interaction.reply({ content: 'Hanya administrator server yang dapat menggunakan command ini.', ephemeral: true });
+  }
+  if (!config.forumChannelId || !config.announcementChannelId) {
+    return interaction.reply({ content: 'FORUM_CHANNEL_ID atau ANNOUNCEMENT_CHANNEL_ID belum dikonfigurasi di `.env`.', ephemeral: true });
+  }
+
+  startForumForward();
+  console.log('✅ Forum forward diaktifkan oleh', interaction.user.tag);
+  return interaction.reply({ content: '✅ Forward postingan forum ke announcement telah diaktifkan (setiap 30 menit).', ephemeral: true });
+}
+
+async function handleForumForwardDisableCommand(interaction) {
+  if (!interaction.inGuild() || interaction.guildId !== config.guildId) {
+    return interaction.reply({ content: 'Command ini hanya dapat dipakai di server yang dikonfigurasi pada `.env`.', ephemeral: true });
+  }
+  if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) {
+    return interaction.reply({ content: 'Hanya administrator server yang dapat menggunakan command ini.', ephemeral: true });
+  }
+
+  stopForumForward();
+  console.log('❌ Forum forward dinonaktifkan oleh', interaction.user.tag);
+  return interaction.reply({ content: '❌ Forward postingan forum telah dinonaktifkan.', ephemeral: true });
+}
+
 async function sendBroadcastMessage() {
   if (!config.broadcastChannelId) {
     console.warn('⚠️ BROADCAST_CHANNEL_ID tidak dikonfigurasi. Broadcast dihentikan.');
@@ -560,6 +612,110 @@ function stopBroadcast() {
   broadcastEnabled = false;
   broadcastMessageId = null;
   console.log('❌ Broadcast dinonaktifkan');
+}
+
+async function forwardForumPost() {
+  if (!config.forumChannelId || !config.announcementChannelId) {
+    console.warn('⚠️ FORUM_CHANNEL_ID atau ANNOUNCEMENT_CHANNEL_ID tidak dikonfigurasi. Forum forward dihentikan.');
+    stopForumForward();
+    return;
+  }
+
+  const forumChannel = await client.channels.fetch(config.forumChannelId).catch(() => null);
+  const announcementChannel = await client.channels.fetch(config.announcementChannelId).catch(() => null);
+
+  if (!forumChannel || !forumChannel.isThreadOnly() || !forumChannel.threads) {
+    console.warn('⚠️ Channel forum tidak ditemukan atau bukan forum channel. Forum forward dihentikan.');
+    stopForumForward();
+    return;
+  }
+
+  if (!announcementChannel || !announcementChannel.isTextBased() || !announcementChannel.send) {
+    console.warn('⚠️ Channel announcement tidak ditemukan atau bukan channel teks. Forum forward dihentikan.');
+    stopForumForward();
+    return;
+  }
+
+  try {
+    const activeThreads = await forumChannel.threads.fetchActive();
+    const archivedThreads = await forumChannel.threads.fetchArchived();
+    const allThreads = [...activeThreads.threads.values(), ...archivedThreads.threads.values()];
+
+    const availablePosts = allThreads.filter(thread => !forumForwardedPostIds.has(thread.id));
+
+    if (availablePosts.length === 0) {
+      console.log('ℹ️ Tidak ada postingan forum baru untuk diforward.');
+      if (forumForwardedPostIds.size >= allThreads.length) {
+        forumForwardedPostIds.clear();
+        console.log('🔄 Reset history postingan forum (semua sudah diforward).');
+      }
+      return;
+    }
+
+    const randomPost = availablePosts[Math.floor(Math.random() * availablePosts.length)];
+    const starterMessage = await randomPost.fetchStarterMessage().catch(() => null);
+
+    if (!starterMessage) {
+      console.warn(`⚠️ Gagal mengambil starter message untuk post ${randomPost.id}`);
+      return;
+    }
+
+    const attachments = [];
+    for (const attachment of starterMessage.attachments.values()) {
+      try {
+        const buffer = await downloadAttachment(attachment.url, attachment.name);
+        attachments.push({
+          attachment: buffer,
+          name: attachment.name,
+        });
+      } catch (error) {
+        console.error(`❌ Gagal mendownload attachment ${attachment.name}:`, error.message);
+      }
+    }
+
+    const forwardMessage = await announcementChannel.send({
+      content: `@everyone\n\n📢 **Postingan Baru dari Forum!**\n\n**Judul:** ${randomPost.name}\n**Penulis:** <@${starterMessage.author.id}>\n\n${starterMessage.content || '*Tidak ada konten teks*'}`,
+      files: attachments.length > 0 ? attachments : undefined,
+      allowedMentions: { parse: ['everyone'] },
+    });
+
+    forumForwardedPostIds.add(randomPost.id);
+    console.log(`✅ Forum post "${randomPost.name}" diforward ke announcement [${forwardMessage.url}]`);
+
+    if (forumForwardedPostIds.size >= allThreads.length) {
+      forumForwardedPostIds.clear();
+      console.log('🔄 Reset history postingan forum (semua sudah diforward).');
+    }
+  } catch (error) {
+    console.error('❌ Gagal forward forum post:', error.message);
+  }
+}
+
+function startForumForward() {
+  if (forumForwardTimer) return;
+  if (!config.forumChannelId || !config.announcementChannelId) {
+    console.warn('⚠️ FORUM_CHANNEL_ID atau ANNOUNCEMENT_CHANNEL_ID tidak dikonfigurasi. Tidak dapat memulai forum forward.');
+    return;
+  }
+
+  forumForwardEnabled = true;
+  forwardForumPost();
+  forumForwardTimer = setInterval(() => {
+    if (forumForwardEnabled) {
+      forwardForumPost();
+    }
+  }, FORUM_FORWARD_INTERVAL_MS);
+  console.log('✅ Forum forward diaktifkan (setiap 30 menit)');
+}
+
+function stopForumForward() {
+  if (forumForwardTimer) {
+    clearInterval(forumForwardTimer);
+    forumForwardTimer = null;
+  }
+  forumForwardEnabled = false;
+  forumForwardedPostIds.clear();
+  console.log('❌ Forum forward dinonaktifkan');
 }
 
 async function handleButton(interaction) {
