@@ -237,7 +237,13 @@ async function downloadAttachment(url, filename) {
       reject(new Error(`Download timeout for ${filename}`));
     }, 60000);
 
-    const req = https.get(url, (response) => {
+    const options = {
+      headers: {
+        'User-Agent': 'DiscordBot (https://discord.com, v14)',
+      },
+    };
+
+    const req = https.get(url, options, (response) => {
       if (response.statusCode !== 200) {
         clearTimeout(timeout);
         reject(new Error(`Failed to download attachment: ${response.statusCode}`));
@@ -662,6 +668,7 @@ async function forwardForumPost() {
     }
 
     const attachments = [];
+    const attachmentUrls = [];
     for (const attachment of starterMessage.attachments.values()) {
       try {
         console.log(`⬇️ Downloading attachment ${attachment.name} (${attachment.size} bytes)...`);
@@ -673,11 +680,16 @@ async function forwardForumPost() {
         console.log(`✅ Downloaded ${attachment.name}`);
       } catch (error) {
         console.error(`❌ Gagal mendownload attachment ${attachment.name}:`, error.message);
+        attachmentUrls.push(attachment.url);
       }
     }
 
     if (attachments.length > 0) {
       console.log(`📤 Sending ${attachments.length} attachment(s) to announcement...`);
+    }
+
+    if (attachmentUrls.length > 0) {
+      console.log(`📎 Using ${attachmentUrls.length} attachment URL(s) as fallback...`);
     }
 
     if (forumForwardMessageId) {
@@ -688,8 +700,14 @@ async function forwardForumPost() {
       }
     }
 
+    let content = `@everyone\n\n📢 **Postingan Baru dari Forum!**\n\n**Judul:** ${randomPost.name}\n**Penulis:** <@${starterMessage.author.id}>\n\n${starterMessage.content || '*Tidak ada konten teks*'}`;
+    
+    if (attachmentUrls.length > 0) {
+      content += '\n\n**Lampiran:**\n' + attachmentUrls.map(url => url).join('\n');
+    }
+
     const forwardMessage = await announcementChannel.send({
-      content: `@everyone\n\n📢 **Postingan Baru dari Forum!**\n\n**Judul:** ${randomPost.name}\n**Penulis:** <@${starterMessage.author.id}>\n\n${starterMessage.content || '*Tidak ada konten teks*'}`,
+      content: content,
       files: attachments.length > 0 ? attachments : undefined,
       allowedMentions: { parse: ['everyone'] },
     });
