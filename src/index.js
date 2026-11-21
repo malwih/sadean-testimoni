@@ -770,6 +770,21 @@ async function handleButton(interaction) {
     return createTicket(interaction);
   }
 
+  if (interaction.customId.startsWith('testimonial_open_ticket:')) {
+    const channelId = interaction.customId.split(':')[1];
+    return interaction.reply({ content: `🎫 Silakan buka ticket di <#${channelId}>`, ephemeral: true });
+  }
+
+  if (interaction.customId.startsWith('testimonial_beli_map:')) {
+    const forumId = interaction.customId.split(':')[1];
+    return interaction.reply({ content: `🗺️ Silakan lihat produk map di <#${forumId}>`, ephemeral: true });
+  }
+
+  if (interaction.customId.startsWith('testimonial_beli_system:')) {
+    const forumId = interaction.customId.split(':')[1];
+    return interaction.reply({ content: `⚙️ Silakan lihat produk system di <#${forumId}>`, ephemeral: true });
+  }
+
   if (interaction.customId.startsWith('ticket_send:')) {
     const channelId = interaction.customId.split(':')[1];
     const ticket = getValidatedTicket(interaction, channelId);
@@ -1057,6 +1072,7 @@ async function handleModalSubmit(interaction) {
   } catch (error) {
     console.error(`Gagal mempublikasikan testimoni #${ticket.number}:`, error);
     await interaction.editReply({ content: '❌ Gagal mengirim testimoni ke channel publik. Periksa izin bot dan channel.' });
+    return;
   }
 
   const mainMessage = await fetchTicketMainMessage(ticket);

@@ -247,8 +247,8 @@ function publicTestimonialEmbed(
     buttons.addComponents(
       new ButtonBuilder()
         .setLabel('OPEN TICKET')
-        .setStyle(ButtonStyle.Link)
-        .setURL(`https://discord.com/channels/${ticket.guildId}/${openTicketChannelId}`)
+        .setStyle(ButtonStyle.Success)
+        .setCustomId(`testimonial_open_ticket:${openTicketChannelId}`)
     );
   }
   
@@ -256,8 +256,8 @@ function publicTestimonialEmbed(
     buttons.addComponents(
       new ButtonBuilder()
         .setLabel('BELI MAP')
-        .setStyle(ButtonStyle.Link)
-        .setURL(`https://discord.com/channels/${ticket.guildId}/${productMapForumId}`)
+        .setStyle(ButtonStyle.Danger)
+        .setCustomId(`testimonial_beli_map:${productMapForumId}`)
     );
   }
   
@@ -265,8 +265,8 @@ function publicTestimonialEmbed(
     buttons.addComponents(
       new ButtonBuilder()
         .setLabel('BELI SYSTEM')
-        .setStyle(ButtonStyle.Link)
-        .setURL(`https://discord.com/channels/${ticket.guildId}/${productSystemForumId}`)
+        .setStyle(ButtonStyle.Primary)
+        .setCustomId(`testimonial_beli_system:${productSystemForumId}`)
     );
   }
 
