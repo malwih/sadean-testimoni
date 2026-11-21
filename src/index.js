@@ -71,6 +71,7 @@ const BROADCAST_INTERVAL_MS = 30 * 60 * 1000;
 
 let forumForwardEnabled = false;
 let forumForwardedPostIds = new Set();
+let forumForwardMessageId = null;
 let forumForwardTimer = null;
 const FORUM_FORWARD_INTERVAL_MS = 30 * 60 * 1000;
 
@@ -663,13 +664,27 @@ async function forwardForumPost() {
     const attachments = [];
     for (const attachment of starterMessage.attachments.values()) {
       try {
+        console.log(`⬇️ Downloading attachment ${attachment.name} (${attachment.size} bytes)...`);
         const buffer = await downloadAttachment(attachment.url, attachment.name);
         attachments.push({
           attachment: buffer,
           name: attachment.name,
         });
+        console.log(`✅ Downloaded ${attachment.name}`);
       } catch (error) {
         console.error(`❌ Gagal mendownload attachment ${attachment.name}:`, error.message);
+      }
+    }
+
+    if (attachments.length > 0) {
+      console.log(`📤 Sending ${attachments.length} attachment(s) to announcement...`);
+    }
+
+    if (forumForwardMessageId) {
+      const oldMessage = await announcementChannel.messages.fetch(forumForwardMessageId).catch(() => null);
+      if (oldMessage) {
+        console.log('🗑️ Menghapus pesan forward sebelumnya...');
+        await oldMessage.delete().catch(() => null);
       }
     }
 
@@ -679,6 +694,7 @@ async function forwardForumPost() {
       allowedMentions: { parse: ['everyone'] },
     });
 
+    forumForwardMessageId = forwardMessage.id;
     forumForwardedPostIds.add(randomPost.id);
     console.log(`✅ Forum post "${randomPost.name}" diforward ke announcement [${forwardMessage.url}]`);
 
@@ -715,6 +731,7 @@ function stopForumForward() {
   }
   forumForwardEnabled = false;
   forumForwardedPostIds.clear();
+  forumForwardMessageId = null;
   console.log('❌ Forum forward dinonaktifkan');
 }
 

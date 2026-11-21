@@ -219,8 +219,9 @@ function publicTestimonialEmbed(
     .setColor(0x57f287)
     .setTitle('🌟 TESTIMONI PEMBELIAN 🌟')
     .setDescription([
+      `👤 **${escapeMarkdown(displayName)}**`,
+      '',
       '```yaml',
-      `Customer  : ${escapeMarkdown(displayName)}`,
       `Testimoni : ${reviewText.replace(/\n/g, ' ')}`,
       '```',
       '',
