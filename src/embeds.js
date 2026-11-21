@@ -200,7 +200,9 @@ function closingEmbed(reason = 'Ticket ditutup.') {
 function publicTestimonialEmbed(
   ticket,
   user,
-  openTicketChannelId = null
+  openTicketChannelId = null,
+  productMapForumId = null,
+  productSystemForumId = null
 ) {
   const displayName = user.globalName || user.username;
 
@@ -215,7 +217,7 @@ function publicTestimonialEmbed(
     ? `<#${openTicketChannelId}>`
     : 'Channel open-ticket';
 
-  return new EmbedBuilder()
+  const embed = new EmbedBuilder()
     .setColor(0x57f287)
     .setTitle('🌟 TESTIMONI PEMBELIAN 🌟')
     .setDescription([
@@ -225,12 +227,9 @@ function publicTestimonialEmbed(
       `Testimoni : ${reviewText.replace(/\n/g, ' ')}`,
       '```',
       '',
-      '✨ **Testimoni berhasil diverifikasi oleh staff!**',
-      '',
       `⭐ **Rating**           : \`${'⭐'.repeat(ticket.rating)} ${ticket.rating}/5\``,
       `🆔 **User ID**          : \`${user.id}\``,
-      `🛒 **Order Via**        : ${orderViaValue}`,
-      `📅 **Tanggal**          : **${new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })} WIB**`,
+      ` **Tanggal**          : **${new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })} WIB**`,
       `🛠️ **Diverifikasi Oleh** : Staff`,
       '',
       `💚 Terima kasih sudah mempercayai **${BRAND}**`,
@@ -241,6 +240,37 @@ function publicTestimonialEmbed(
       text: `Terverifikasi oleh staff • ${BRAND}`
     })
     .setTimestamp();
+
+  const buttons = new ActionRowBuilder();
+  
+  if (openTicketChannelId) {
+    buttons.addComponents(
+      new ButtonBuilder()
+        .setLabel('OPEN TICKET')
+        .setStyle(ButtonStyle.Success)
+        .setURL(`https://discord.com/channels/${ticket.guildId}/${openTicketChannelId}`)
+    );
+  }
+  
+  if (productMapForumId) {
+    buttons.addComponents(
+      new ButtonBuilder()
+        .setLabel('BELI MAP')
+        .setStyle(ButtonStyle.Danger)
+        .setURL(`https://discord.com/channels/${ticket.guildId}/${productMapForumId}`)
+    );
+  }
+  
+  if (productSystemForumId) {
+    buttons.addComponents(
+      new ButtonBuilder()
+        .setLabel('BELI SYSTEM')
+        .setStyle(ButtonStyle.Primary)
+        .setURL(`https://discord.com/channels/${ticket.guildId}/${productSystemForumId}`)
+    );
+  }
+
+  return { embed, components: buttons.components.length > 0 ? [buttons] : [] };
 }
 
 function acceptedReviewEmbed(ticket, staffUser) {

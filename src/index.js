@@ -46,6 +46,8 @@ const config = {
   broadcastChannelId: process.env.BROADCAST_CHANNEL_ID?.trim() || null,
   forumChannelId: process.env.FORUM_CHANNEL_ID?.trim() || null,
   announcementChannelId: process.env.ANNOUNCEMENT_CHANNEL_ID?.trim() || null,
+  productMapForumId: process.env.PRODUCT_MAP_FORUM_ID?.trim() || null,
+  productSystemForumId: process.env.PRODUCT_SYSTEM_FORUM_ID?.trim() || null,
 };
 
 const client = new Client({
@@ -1093,10 +1095,11 @@ async function handleStaffDecision(interaction, decision) {
       }
 
       const buyer = await client.users.fetch(ticket.actualUserId || ticket.userId);
-      const publicEmbed = embeds.publicTestimonialEmbed(ticket, buyer, config.openTicketChannelId);
+      const { embed: publicEmbed, components } = embeds.publicTestimonialEmbed(ticket, buyer, config.openTicketChannelId, config.productMapForumId, config.productSystemForumId);
       publicMessage = await publicChannel.send({
         content: '@everyone',
         embeds: [publicEmbed],
+        components: components,
         allowedMentions: { parse: ['everyone'] },
       });
     } catch (error) {
