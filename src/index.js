@@ -1019,7 +1019,7 @@ async function handleModalSubmit(interaction) {
   ticket.reviewText = reviewText;
   ticket.rating = rating;
   ticket.actualUserId = actualUserId;
-  ticket.state = 'awaiting_staff_review';
+  ticket.state = 'closed';
   ticket.deadline = null;
   ticket.formSubmittedAt = Date.now();
   store.saveTicket(ticket);
@@ -1028,42 +1028,48 @@ async function handleModalSubmit(interaction) {
     await interaction.channel.permissionOverwrites.edit(ticket.userId, {
       SendMessages: false,
       AttachFiles: false,
-    }, 'Formulir testimoni diterima; mengunci ticket sambil menunggu review staff.');
+    }, 'Formulir testimoni diterima; ticket ditutup.');
   } catch (permissionError) {
     console.error(`Gagal mengunci ticket ${ticket.number}:`, permissionError.message);
   }
 
   await interaction.deferReply({ ephemeral: true });
-  const user = await client.users.fetch(actualUserId).catch(() => interaction.user);
-  const reviewMessage = await interaction.channel.send({
-    embeds: [embeds.staffReviewEmbed(ticket, user)],
-    components: embeds.staffReviewComponents(ticket.channelId),
-    allowedMentions: { parse: [] },
-  });
-  ticket.reviewMessageId = reviewMessage.id;
-  store.saveTicket(ticket);
+
+  try {
+    let publicChannel = await client.channels.fetch(config.publicChannelId).catch(() => null);
+    if (!publicChannel || !publicChannel.isTextBased() || !publicChannel.send) {
+      throw new Error('Channel TESTIMONI_ORDER_CHANNEL_ID tidak ditemukan atau bukan channel teks.');
+    }
+    if (publicChannel.guildId && publicChannel.guildId !== ticket.guildId) {
+      throw new Error('Channel testimoni publik berada di server yang berbeda dengan ticket.');
+    }
+
+    const buyer = await client.users.fetch(actualUserId);
+    const { embed: publicEmbed, components } = embeds.publicTestimonialEmbed(ticket, buyer, config.openTicketChannelId, config.productMapForumId, config.productSystemForumId);
+    await publicChannel.send({
+      content: '@everyone',
+      embeds: [publicEmbed],
+      components: components,
+      allowedMentions: { parse: ['everyone'] },
+    });
+
+    await interaction.editReply({ content: '✅ Testimoni berhasil dikirim ke channel publik!' });
+  } catch (error) {
+    console.error(`Gagal mempublikasikan testimoni #${ticket.number}:`, error);
+    await interaction.editReply({ content: '❌ Gagal mengirim testimoni ke channel publik. Periksa izin bot dan channel.' });
+  }
 
   const mainMessage = await fetchTicketMainMessage(ticket);
   if (mainMessage) {
     await mainMessage.edit({
       embeds: [new EmbedBuilder()
-        .setColor(embeds.ORANGE)
-        .setTitle(`🔐 Ticket #${ticket.number} • Menunggu Review Staff`)
-        .setDescription([
-          'Formulir testimoni telah diterima. Terima kasih!',
-          '',
-          '🔒 Chat ticket sekarang dikunci agar data tidak berubah selama staff memeriksa testimoni.',
-          'Staff akan memilih **ACCEPT** atau **REJECT** pada panel review di bawah.',
-        ].join('\n'))
-        .addFields(
-          { name: '⭐ Rating', value: `${'⭐'.repeat(ticket.rating)} (${ticket.rating}/5)`, inline: true },
-        )
-        .setFooter({ text: `Ticket #${ticket.number} • Status: menunggu staff` })
+        .setColor(embeds.GREEN)
+        .setTitle('🎉 Testimoni Terkirim')
+        .setDescription('Terima kasih atas testimoni Anda! Testimoni telah dikirim ke channel publik.')
         .setTimestamp()],
-      components: [closeOnlyRow(ticket.channelId)],
+      components: [],
     });
   }
-  await interaction.editReply('✅ Formulir tersimpan. Staff akan memeriksa testimoni kamu.');
 }
 
 async function handleStaffDecision(interaction, decision) {
