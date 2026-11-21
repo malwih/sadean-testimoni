@@ -702,7 +702,7 @@ async function forwardForumPost() {
       }
     }
 
-    let content = `@everyone\n\n📢 **Postingan Baru dari Forum!**\n\n**Judul:** ${randomPost.name}\n**Penulis:** <@${starterMessage.author.id}>\n\n${starterMessage.content || '*Tidak ada konten teks*'}`;
+    let content = `@everyone\n\n${starterMessage.content || '*Tidak ada konten teks*'}`;
     
     if (attachmentUrls.length > 0) {
       content += '\n\n**Lampiran:**\n' + attachmentUrls.map(url => url).join('\n');
