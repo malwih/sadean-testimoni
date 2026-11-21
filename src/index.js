@@ -1050,6 +1050,18 @@ async function handleModalSubmit(interaction) {
 
   await interaction.deferReply({ ephemeral: true });
 
+  const mainMessage = await fetchTicketMainMessage(ticket);
+  if (mainMessage) {
+    await mainMessage.edit({
+      embeds: [new EmbedBuilder()
+        .setColor(embeds.GREEN)
+        .setTitle('🎉 Testimoni Terkirim')
+        .setDescription('Terima kasih atas testimoni Anda! Testimoni telah dikirim ke channel publik.')
+        .setTimestamp()],
+      components: [],
+    });
+  }
+
   try {
     let publicChannel = await client.channels.fetch(config.publicChannelId).catch(() => null);
     if (!publicChannel || !publicChannel.isTextBased() || !publicChannel.send) {
@@ -1072,19 +1084,6 @@ async function handleModalSubmit(interaction) {
   } catch (error) {
     console.error(`Gagal mempublikasikan testimoni #${ticket.number}:`, error);
     await interaction.editReply({ content: '❌ Gagal mengirim testimoni ke channel publik. Periksa izin bot dan channel.' });
-    return;
-  }
-
-  const mainMessage = await fetchTicketMainMessage(ticket);
-  if (mainMessage) {
-    await mainMessage.edit({
-      embeds: [new EmbedBuilder()
-        .setColor(embeds.GREEN)
-        .setTitle('🎉 Testimoni Terkirim')
-        .setDescription('Terima kasih atas testimoni Anda! Testimoni telah dikirim ke channel publik.')
-        .setTimestamp()],
-      components: [],
-    });
   }
 }
 
