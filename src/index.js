@@ -48,7 +48,6 @@ const config = {
   announcementChannelId: process.env.ANNOUNCEMENT_CHANNEL_ID?.trim() || null,
   productMapForumId: process.env.PRODUCT_MAP_FORUM_ID?.trim() || null,
   productSystemForumId: process.env.PRODUCT_SYSTEM_FORUM_ID?.trim() || null,
-  dummyTestimoniServerId: process.env.DUMMY_TESTIMONI_SERVER_ID?.trim().split(',').map(id => id.trim()).filter(id => id) || [],
 };
 
 const client = new Client({
@@ -77,164 +76,6 @@ let forumForwardedPostIds = new Set();
 let forumForwardMessageId = null;
 let forumForwardTimer = null;
 const FORUM_FORWARD_INTERVAL_MS = 30 * 60 * 1000;
-
-let dummyTestimoniEnabled = false;
-let dummyTestimoniTimer = null;
-const DUMMY_TESTIMONI_INTERVAL_MS = 2 * 60 * 60 * 1000;
-
-const dummyTestimoniMessages = {
-  map: [
-    "Map nya keren + enteng bgt, admin gercep, mksih min",
-    "Map nya gacor, loading cepet, worth it parah",
-    "Map nya detail banget, texture nya clean, suka!",
-    "Map nya mantap, ga bikin lag, recommended",
-    "Map nya keren abis, temen saya pada nanyain",
-    "Map nya worth it, harga sebanding kualitas",
-    "Map nya bagus, ga banyak bug, admin ramah",
-    "Map nya top, desain nya aesthetic, suka banget",
-    "Map nya enteng, fps stabil, mksih min",
-    "Map nya keren, detail nya dapet, beli lagi",
-    "Map nya gokil, loading cepet, admin fast",
-    "Map nya mantul, texture bersih, recommended",
-    "Map nya worth, ga nge-lag, suka!",
-    "Map nya bagus, admin responsif, mksih",
-    "Map nya keren, desain nya clean, beli",
-    "Map nya gacor, fps stabil, worth it",
-    "Map nya top, detail nya dapet, suka",
-    "Map nya enteng, loading cepet, recommended",
-    "Map nya keren, ga banyak bug, admin",
-    "Map nya mantap, texture clean, beli lagi",
-    "Map nya gokil, admin gercep, mksih min",
-    "Map nya worth, fps stabil, suka banget",
-    "Map nya bagus, desain aesthetic, recommended",
-    "Map nya keren, loading cepet, admin fast",
-    "Map nya gacor, detail dapet, beli",
-    "Map nya top, ga nge-lag, suka!",
-    "Map nya enteng, admin ramah, mksih",
-    "Map nya keren, texture bersih, worth it",
-    "Map nya mantul, fps stabil, recommended",
-    "Map nya worth, desain clean, suka",
-    "Map nya bagus, loading cepet, admin",
-    "Map nya keren, detail nya gokil, beli",
-    "Map nya gacor, admin fast, mksih min",
-    "Map nya top, ga banyak bug, suka",
-    "Map nya enteng, texture clean, recommended",
-    "Map nya keren, fps stabil, worth it",
-    "Map nya mantap, admin gercep, beli",
-    "Map nya gokil, desain aesthetic, suka",
-    "Map nya worth, loading cepet, admin",
-    "Map nya bagus, detail dapet, mksih",
-    "Map nya keren, ga nge-lag, recommended",
-    "Map nya gacor, admin ramah, suka banget",
-    "Map nya top, texture bersih, beli",
-    "Map nya enteng, admin fast, worth it",
-    "Map nya keren, fps stabil, recommended",
-    "Map nya mantul, loading cepet, suka",
-    "Map nya worth, detail gokil, admin",
-    "Map nya bagus, admin gercep, mksih",
-    "Map nya keren, ga banyak bug, beli lagi",
-  ],
-  clubKit: [
-    "Club kit nya gacor, temen saya pda nanyain, soalnya jarang yg make",
-    "Club kit nya keren, fitur lengkap, worth it",
-    "Club kit nya mantap, admin fast, mksih min",
-    "Club kit nya top, ga banyak bug, suka",
-    "Club kit nya gacor, loading cepet, recommended",
-    "Club kit nya keren, detail dapet, beli",
-    "Club kit nya worth, admin ramah, suka banget",
-    "Club kit nya bagus, texture clean, worth it",
-    "Club kit nya enteng, fps stabil, recommended",
-    "Club kit nya keren, admin gercep, beli",
-    "Club kit nya gacor, desain aesthetic, suka",
-    "Club kit nya top, loading cepet, admin",
-    "Club kit nya mantul, detail gokil, mksih",
-    "Club kit nya worth, ga nge-lag, suka",
-    "Club kit nya bagus, admin fast, recommended",
-    "Club kit nya keren, fps stabil, beli lagi",
-    "Club kit nya gacor, admin ramah, worth it",
-    "Club kit nya top, texture bersih, suka",
-    "Club kit nya enteng, loading cepet, admin",
-    "Club kit nya keren, detail dapet, mksih min",
-    "Club kit nya gacor, ga banyak bug, recommended",
-    "Club kit nya mantap, admin fast, suka",
-    "Club kit nya gokil, desain clean, worth it",
-    "Club kit nya worth, fps stabil, beli",
-    "Club kit nya bagus, admin gercep, suka banget",
-    "Club kit nya keren, loading cepet, admin",
-    "Club kit nya gacor, detail gokil, recommended",
-    "Club kit nya top, ga nge-lag, suka",
-    "Club kit nya enteng, admin ramah, mksih",
-    "Club kit nya keren, texture clean, beli lagi",
-    "Club kit nya gacor, admin fast, worth it",
-    "Club kit nya mantul, fps stabil, suka",
-    "Club kit nya worth, loading cepet, admin",
-    "Club kit nya bagus, detail dapet, recommended",
-    "Club kit nya keren, admin gercep, mksih min",
-    "Club kit nya gacor, ga banyak bug, suka",
-    "Club kit nya top, desain aesthetic, beli",
-    "Club kit nya enteng, texture bersih, worth it",
-    "Club kit nya keren, fps stabil, recommended",
-    "Club kit nya mantap, loading cepet, admin",
-    "Club kit nya gokil, admin fast, mksih",
-    "Club kit nya worth, detail gokil, suka banget",
-    "Club kit nya bagus, ga nge-lag, beli",
-    "Club kit nya keren, admin ramah, recommended",
-    "Club kit nya gacor, texture clean, suka",
-    "Club kit nya top, admin gercep, worth it",
-    "Club kit nya enteng, detail dapet, beli lagi",
-    "Club kit nya keren, loading cepet, admin",
-  ],
-  systemBirthday: [
-    "Keren nih system birhtday nya, jdi ga perlu ribet2 aktifin dekor birthday",
-    "System birthday nya gacor, auto aktif, worth it",
-    "System birthday nya mantap, admin fast, mksih min",
-    "System birthday nya top, ga banyak bug, suka",
-    "System birthday nya gacor, loading cepet, recommended",
-    "System birthday nya keren, detail dapet, beli",
-    "System birthday nya worth, admin ramah, suka banget",
-    "System birthday nya bagus, texture clean, worth it",
-    "System birthday nya enteng, fps stabil, recommended",
-    "System birthday nya keren, admin gercep, beli",
-    "System birthday nya gacor, desain aesthetic, suka",
-    "System birthday nya top, loading cepet, admin",
-    "System birthday nya mantul, detail gokil, mksih",
-    "System birthday nya worth, ga nge-lag, suka",
-    "System birthday nya bagus, admin fast, recommended",
-    "System birthday nya keren, fps stabil, beli lagi",
-    "System birthday nya gacor, admin ramah, worth it",
-    "System birthday nya top, texture bersih, suka",
-    "System birthday nya enteng, loading cepet, admin",
-    "System birthday nya keren, detail dapet, mksih min",
-    "System birthday nya gacor, ga banyak bug, recommended",
-    "System birthday nya mantap, admin fast, suka",
-    "System birthday nya gokil, desain clean, worth it",
-    "System birthday nya worth, fps stabil, beli",
-    "System birthday nya bagus, admin gercep, suka banget",
-    "System birthday nya keren, loading cepet, admin",
-    "System birthday nya gacor, detail gokil, recommended",
-    "System birthday nya top, ga nge-lag, suka",
-    "System birthday nya enteng, admin ramah, mksih",
-    "System birthday nya keren, texture clean, beli lagi",
-    "System birthday nya gacor, admin fast, worth it",
-    "System birthday nya mantul, fps stabil, suka",
-    "System birthday nya worth, loading cepet, admin",
-    "System birthday nya bagus, detail dapet, recommended",
-    "System birthday nya keren, admin gercep, mksih min",
-    "System birthday nya gacor, ga banyak bug, suka",
-    "System birthday nya top, desain aesthetic, beli",
-    "System birthday nya enteng, texture bersih, worth it",
-    "System birthday nya keren, fps stabil, recommended",
-    "System birthday nya mantap, loading cepet, admin",
-    "System birthday nya gokil, admin fast, mksih",
-    "System birthday nya worth, detail gokil, suka banget",
-    "System birthday nya bagus, ga nge-lag, beli",
-    "System birthday nya keren, admin ramah, recommended",
-    "System birthday nya gacor, texture clean, suka",
-    "System birthday nya top, admin gercep, worth it",
-    "System birthday nya enteng, detail dapet, beli lagi",
-    "System birthday nya keren, loading cepet, admin",
-  ],
-};
 
 const setupCommand = new SlashCommandBuilder()
   .setName('setup-testimoni')
@@ -289,23 +130,13 @@ const forumForwardDisableCommand = new SlashCommandBuilder()
   .setDescription('Nonaktifkan forward postingan forum.')
   .setDefaultMemberPermissions(PermissionFlagsBits.Administrator);
 
-const dummyTestimoniEnableCommand = new SlashCommandBuilder()
-  .setName('dummy-testimoni-enable')
-  .setDescription('Aktifkan posting testimoni dummy otomatis setiap 2 jam.')
-  .setDefaultMemberPermissions(PermissionFlagsBits.Administrator);
-
-const dummyTestimoniDisableCommand = new SlashCommandBuilder()
-  .setName('dummy-testimoni-disable')
-  .setDescription('Nonaktifkan posting testimoni dummy.')
-  .setDefaultMemberPermissions(PermissionFlagsBits.Administrator);
-
 client.once(Events.ClientReady, async (readyClient) => {
   console.log(`✅ Login sebagai ${readyClient.user.tag}`);
 
   try {
     const rest = new REST({ version: '10' }).setToken(config.token);
     await rest.put(Routes.applicationGuildCommands(config.clientId, config.guildId), {
-      body: [setupCommand.toJSON(), testimoniCommand.toJSON(), untestimoniCommand.toJSON(), relayEnableCommand.toJSON(), relayDisableCommand.toJSON(), broadcastEnableCommand.toJSON(), broadcastDisableCommand.toJSON(), forumForwardEnableCommand.toJSON(), forumForwardDisableCommand.toJSON(), dummyTestimoniEnableCommand.toJSON(), dummyTestimoniDisableCommand.toJSON()],
+      body: [setupCommand.toJSON(), testimoniCommand.toJSON(), untestimoniCommand.toJSON(), relayEnableCommand.toJSON(), relayDisableCommand.toJSON(), broadcastEnableCommand.toJSON(), broadcastDisableCommand.toJSON(), forumForwardEnableCommand.toJSON(), forumForwardDisableCommand.toJSON()],
     });
     console.log('✅ Slash command berhasil didaftarkan.');
   } catch (error) {
@@ -362,12 +193,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
       }
       if (interaction.commandName === 'forum-forward-disable') {
         await handleForumForwardDisableCommand(interaction);
-      }
-      if (interaction.commandName === 'dummy-testimoni-enable') {
-        await handleDummyTestimoniEnableCommand(interaction);
-      }
-      if (interaction.commandName === 'dummy-testimoni-disable') {
-        await handleDummyTestimoniDisableCommand(interaction);
       }
       return;
     }
@@ -737,35 +562,6 @@ async function handleForumForwardDisableCommand(interaction) {
   return interaction.reply({ content: '❌ Forward postingan forum telah dinonaktifkan.', ephemeral: true });
 }
 
-async function handleDummyTestimoniEnableCommand(interaction) {
-  if (!interaction.inGuild() || interaction.guildId !== config.guildId) {
-    return interaction.reply({ content: 'Command ini hanya dapat dipakai di server yang dikonfigurasi pada `.env`.', ephemeral: true });
-  }
-  if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) {
-    return interaction.reply({ content: 'Hanya administrator server yang dapat menggunakan command ini.', ephemeral: true });
-  }
-  if (!config.dummyTestimoniServerId || !config.publicChannelId) {
-    return interaction.reply({ content: 'DUMMY_TESTIMONI_SERVER_ID atau TESTIMONI_ORDER_CHANNEL_ID belum dikonfigurasi di `.env`.', ephemeral: true });
-  }
-
-  startDummyTestimoni();
-  console.log('✅ Dummy testimoni diaktifkan oleh', interaction.user.tag);
-  return interaction.reply({ content: '✅ Posting testimoni dummy telah diaktifkan (setiap 2 jam).', ephemeral: true });
-}
-
-async function handleDummyTestimoniDisableCommand(interaction) {
-  if (!interaction.inGuild() || interaction.guildId !== config.guildId) {
-    return interaction.reply({ content: 'Command ini hanya dapat dipakai di server yang dikonfigurasi pada `.env`.', ephemeral: true });
-  }
-  if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) {
-    return interaction.reply({ content: 'Hanya administrator server yang dapat menggunakan command ini.', ephemeral: true });
-  }
-
-  stopDummyTestimoni();
-  console.log('❌ Dummy testimoni dinonaktifkan oleh', interaction.user.tag);
-  return interaction.reply({ content: '❌ Posting testimoni dummy telah dinonaktifkan.', ephemeral: true });
-}
-
 async function sendBroadcastMessage() {
   if (!config.broadcastChannelId) {
     console.warn('⚠️ BROADCAST_CHANNEL_ID tidak dikonfigurasi. Broadcast dihentikan.');
@@ -957,104 +753,6 @@ function stopForumForward() {
   forumForwardedPostIds.clear();
   forumForwardMessageId = null;
   console.log('❌ Forum forward dinonaktifkan');
-}
-
-async function getRandomUserFromServer() {
-  if (!config.dummyTestimoniServerId || config.dummyTestimoniServerId.length === 0) {
-    console.warn('⚠️ DUMMY_TESTIMONI_SERVER_ID tidak dikonfigurasi.');
-    return null;
-  }
-
-  try {
-    const randomServerId = config.dummyTestimoniServerId[Math.floor(Math.random() * config.dummyTestimoniServerId.length)];
-    const guild = await client.guilds.fetch(randomServerId).catch(() => null);
-    if (!guild) {
-      console.warn(`⚠️ Server dummy testimoni ${randomServerId} tidak ditemukan.`);
-      return null;
-    }
-
-    const members = await guild.members.fetch();
-    const memberArray = Array.from(members.values());
-    const randomMember = memberArray[Math.floor(Math.random() * memberArray.length)];
-    
-    return randomMember.user;
-  } catch (error) {
-    console.error('❌ Gagal mengambil user random dari server:', error.message);
-    return null;
-  }
-}
-
-async function postDummyTestimoni() {
-  if (!config.publicChannelId) {
-    console.warn('⚠️ TESTIMONI_ORDER_CHANNEL_ID tidak dikonfigurasi. Dummy testimoni dihentikan.');
-    stopDummyTestimoni();
-    return;
-  }
-
-  const publicChannel = await client.channels.fetch(config.publicChannelId).catch(() => null);
-  if (!publicChannel || !publicChannel.isTextBased() || !publicChannel.send) {
-    console.warn('⚠️ Channel testimoni publik tidak ditemukan atau bukan channel teks. Dummy testimoni dihentikan.');
-    stopDummyTestimoni();
-    return;
-  }
-
-  const randomUser = await getRandomUserFromServer();
-  if (!randomUser) {
-    console.warn('⚠️ Gagal mengambil user random. Dummy testimoni dihentikan.');
-    stopDummyTestimoni();
-    return;
-  }
-
-  const categories = ['map', 'clubKit', 'systemBirthday'];
-  const randomCategory = categories[Math.floor(Math.random() * categories.length)];
-  const messages = dummyTestimoniMessages[randomCategory];
-  const randomMessage = messages[Math.floor(Math.random() * messages.length)];
-  const randomRating = Math.floor(Math.random() * 2) + 4; // 4 or 5
-
-  const dummyTicket = {
-    reviewText: randomMessage,
-    rating: randomRating,
-    guildId: config.guildId,
-  };
-
-  try {
-    const { embed: publicEmbed, components } = embeds.publicTestimonialEmbed(dummyTicket, randomUser, config.openTicketChannelId, config.productMapForumId, config.productSystemForumId);
-    await publicChannel.send({
-      content: '@everyone',
-      embeds: [publicEmbed],
-      components: components,
-      allowedMentions: { parse: ['everyone'] },
-    });
-    console.log(`✅ Dummy testimoni diposting (${randomCategory}, rating ${randomRating}) oleh ${randomUser.tag}`);
-  } catch (error) {
-    console.error('❌ Gagal memposting dummy testimoni:', error.message);
-  }
-}
-
-function startDummyTestimoni() {
-  if (dummyTestimoniTimer) return;
-  if (!config.dummyTestimoniServerId || !config.publicChannelId) {
-    console.warn('⚠️ DUMMY_TESTIMONI_SERVER_ID atau TESTIMONI_ORDER_CHANNEL_ID tidak dikonfigurasi. Tidak dapat memulai dummy testimoni.');
-    return;
-  }
-
-  dummyTestimoniEnabled = true;
-  postDummyTestimoni();
-  dummyTestimoniTimer = setInterval(() => {
-    if (dummyTestimoniEnabled) {
-      postDummyTestimoni();
-    }
-  }, DUMMY_TESTIMONI_INTERVAL_MS);
-  console.log('✅ Dummy testimoni diaktifkan (setiap 2 jam)');
-}
-
-function stopDummyTestimoni() {
-  if (dummyTestimoniTimer) {
-    clearInterval(dummyTestimoniTimer);
-    dummyTestimoniTimer = null;
-  }
-  dummyTestimoniEnabled = false;
-  console.log('❌ Dummy testimoni dinonaktifkan');
 }
 
 async function handleButton(interaction) {
