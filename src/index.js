@@ -586,7 +586,7 @@ async function sendBroadcastMessage() {
     }
 
     const newMessage = await channel.send({
-      content: '@everyone\n\n🛒 **MAU ORDER? GAS LANGSUNG!**\n\nMau beli Map, Asset, atau jasa lainnya?\nKlik tombol **📩 OPEN TICKET** di atas untuk mulai order!\n\n✨ *Semua pemesanan melalui ticket, ya!*',
+      content: '@everyone\n\n🛒 **MAU ORDER? GAS LANGSUNG!**\n\nMau Request Map / Beli Map Ready, Request System / Beli System Ready, Optimize Map atau jasa lainnya?\nKlik tombol **📩 OPEN TICKET** di atas untuk mulai order!\n\n✨ *Semua pemesanan melalui ticket, ya!*',
       allowedMentions: { parse: ['everyone'] },
     });
     broadcastMessageId = newMessage.id;
